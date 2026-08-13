@@ -1,55 +1,62 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:geolocator/geolocator.dart';
 import '../models/store_model.dart';
 
 class ApiService {
-  // Ganti IP sesuai server Laravel Anda
   static const String baseUrl = 'http://192.168.53.175:8000/api';
 
-  static Future<Map<String, dynamic>> fetchStores() async {
-    double latitude = -6.200000;
-    double longitude = 106.816666;
-
+  // 1. Fetch Daftar Toko
+  static Future<Map<String, dynamic>> fetchStores({
+    double lat = -7.71830000,
+    double lng = 109.01500000,
+  }) async {
     try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (serviceEnabled) {
-        LocationPermission permission = await Geolocator.checkPermission();
-        if (permission == LocationPermission.denied) {
-          permission = await Geolocator.requestPermission();
-        }
-        if (permission == LocationPermission.deniedForever) {
-          // Pakai default
-        } else {
-          Position position = await Geolocator.getCurrentPosition();
-          latitude = position.latitude;
-          longitude = position.longitude;
-        }
-      }
-    } catch (e) {
-      print('GPS Error: $e');
-    }
-
-    try {
-      final url = Uri.parse(
-        '$baseUrl/nearby-stores?latitude=$latitude&longitude=$longitude',
+      final response = await http.get(
+        Uri.parse('$baseUrl/stores?latitude=$lat&longitude=$lng'),
       );
-      final response = await http.get(url);
 
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['success'] == true) {
-          List<dynamic> rawData = data['data'];
-          List<Store> stores = rawData
-              .map((json) => Store.fromJson(json))
-              .toList();
-          return {'success': true, 'data': stores};
-        }
+        final body = jsonDecode(response.body);
+        List<Store> stores = (body['data'] as List)
+            .map((item) => Store.fromJson(item))
+            .toList();
+        return {'success': true, 'data': stores};
       }
-      return {'success': false, 'data': <Store>[]};
+      return {'success': false, 'message': 'Gagal memuat daftar toko.'};
     } catch (e) {
-      print('API Error: $e');
-      return {'success': false, 'data': <Store>[]};
+      return {'success': false, 'message': 'Kesalahan koneksi: $e'};
+    }
+  }
+
+  // 2. Claim Toko (Mulai Kunjungan)
+  static Future<Map<String, dynamic>> claimStore({
+    required int storeId,
+    required int salesId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/stores/claim'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'store_id': storeId, 'sales_id': salesId}),
+      );
+
+      final body = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return {
+          'success': true,
+          'message': body['message'] ?? 'Berhasil klaim toko.',
+          'data': body['data'],
+        };
+      } else {
+        // Menangkap error 400 (Toko sedang dikunjungi sales lain)
+        return {
+          'success': false,
+          'message': body['message'] ?? 'Gagal me-klaim toko.',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Terjadi kesalahan jaringan.'};
     }
   }
 }

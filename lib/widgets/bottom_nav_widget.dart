@@ -12,23 +12,67 @@ class BottomNavWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BottomNavigationBar(
-      currentIndex: currentIndex,
-      selectedItemColor: const Color(0xFF006C49),
-      unselectedItemColor: Colors.grey,
-      type: BottomNavigationBarType
-          .fixed, // Penting jika menu lebih dari 3 agar tidak error
-      onTap: onTap,
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-        BottomNavigationBarItem(
-          icon: Icon(Icons.shopping_bag),
-          label: 'Resensi',
+    const primaryNavy = Color(0xFF1E3A60); // Warna teks & ikon navy
+    const pillIndicator = Color(0xFFD9E4EF); // Warna kapsul/pill aktif
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Colors.grey.shade200, width: 1.0),
         ),
-        BottomNavigationBarItem(icon: Icon(Icons.group), label: 'Stock'),
-        BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Simulasi Harga'),
-        BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-      ],
+      ),
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          backgroundColor: Colors.white,
+          indicatorColor: pillIndicator,
+          labelTextStyle: WidgetStateProperty.resolveWith((states) {
+            final bool isSelected = states.contains(WidgetState.selected);
+            return TextStyle(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              color: primaryNavy,
+            );
+          }),
+          iconTheme: WidgetStateProperty.all(
+            const IconThemeData(color: primaryNavy, size: 24),
+          ),
+        ),
+        child: NavigationBar(
+          selectedIndex: currentIndex,
+          elevation: 0,
+          onDestinationSelected: onTap,
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              selectedIcon: Icon(Icons.home),
+              label: 'Home',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.rate_review_outlined),
+              selectedIcon: Icon(Icons.rate_review),
+              label: 'Resensi',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.inventory_2_outlined),
+              selectedIcon: Icon(Icons.inventory_2),
+              label: 'Stock',
+            ),
+            // Label berubah dinamis: jika index ke-3 aktif, tampilkan penuh.
+            // Jika tidak, tampilkan singkat dengan titik-titik.
+            NavigationDestination(
+              icon: const Icon(Icons.calculate_outlined),
+              selectedIcon: const Icon(Icons.calculate),
+              label: currentIndex == 3 ? 'Simulasi Produk' : 'Simulasi...',
+            ),
+            const NavigationDestination(
+              icon: Icon(Icons.person_outline),
+              selectedIcon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

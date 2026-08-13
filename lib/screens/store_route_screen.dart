@@ -18,11 +18,11 @@ class _StoreRouteScreenState extends State<StoreRouteScreen> {
   List<Store> _stores = [];
   bool _isLoading = true;
 
-  // State untuk pencarian & view mode
+  // State pencarian & view mode
   String _searchQuery = '';
   bool _isMapView = false;
 
-  // Warna sesuai Tailwind Palette HTML
+  // Palette
   static const Color primaryNavy = Color(0xFF1C467F);
   static const Color primaryDark = Color(0xFF031636);
   static const Color activeBannerBg = Color(0xFF70F5A8);
@@ -71,6 +71,47 @@ class _StoreRouteScreenState extends State<StoreRouteScreen> {
     );
     if (await canLaunchUrl(googleMapsUrl)) {
       await launchUrl(googleMapsUrl, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  Future<void> _handleClaimStore(Store store) async {
+    // Tampilkan Loading Dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    // Asumsi current sales_id = 2 (Budi Sales 1)
+    const int currentSalesId = 2;
+
+    final result = await ApiService.claimStore(
+      storeId: store.id,
+      salesId: currentSalesId,
+    );
+
+    // Tutup Loading Dialog
+    if (mounted) Navigator.pop(context);
+
+    if (result['success'] == true) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Berhasil mengunjungi ${store.name}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      // Refresh list toko agar status UI terupdate
+      _loadStores();
+    } else {
+      // Jika terjadi collision/error dari backend
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(result['message'] ?? 'Gagal klaim toko'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      // Refresh list toko untuk mendapatkan status toko terbaru
+      _loadStores();
     }
   }
 
@@ -307,7 +348,7 @@ class _StoreRouteScreenState extends State<StoreRouteScreen> {
 
           // 2. Active Visit Sticky Banner
           Container(
-            color: activeBannerBg,
+            color: badgeOrange,
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -315,20 +356,20 @@ class _StoreRouteScreenState extends State<StoreRouteScreen> {
                 Row(
                   children: [
                     const Icon(Icons.location_on, color: primaryNavy, size: 22),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 14),
                     RichText(
                       text: const TextSpan(
                         style: TextStyle(
-                          color: primaryNavy,
+                          color: Colors.white,
                           fontSize: 13,
                           height: 1.2,
                         ),
                         children: [
-                          TextSpan(text: 'Active Visit:\n'),
                           TextSpan(
-                            text: 'Resto Jaya Meat (Bekasi)',
+                            text: 'Active Visit:\n',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
+                          TextSpan(text: 'Resto Jaya Meat (Bekasi)'),
                         ],
                       ),
                     ),
@@ -694,14 +735,9 @@ class _StoreRouteScreenState extends State<StoreRouteScreen> {
                         borderRadius: BorderRadius.circular(8),
                       ),
                     ),
-                    // DISESUAIKAN: Aksi Mulai Kunjungi (Misal: trigger status / SnackBar)
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Kunjungan ke ${store.name} dimulai'),
-                        ),
-                      );
-                    },
+                    onPressed: () => _handleClaimStore(
+                      store,
+                    ), // <--- HUBUNGKAN KE FUNGSI KLAIM API
                     child: const Text(
                       'Mulai Kunjungi',
                       style: TextStyle(
