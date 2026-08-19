@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
-import 'screens/store_route_screen.dart';
+import 'screens/home/home.dart';
+// import 'screens/store_route_screen.dar';
+import 'screens/auth/login.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const FieldSalesApp());
@@ -18,7 +21,7 @@ class FieldSalesApp extends StatelessWidget {
         scaffoldBackgroundColor: const Color(0xFFF8F9FF),
         fontFamily: 'Inter',
       ),
-      home: const StoreRouteScreen(),
+      home: const LoginScreen(),
     );
   }
 }

@@ -1,18 +1,16 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../models/store_model.dart';
+import 'api_config.dart';
 
-class ApiService {
-  static const String baseUrl = 'http://192.168.53.175:8000/api';
-
-  // 1. Fetch Daftar Toko
+class StoreService {
   static Future<Map<String, dynamic>> fetchStores({
     double lat = -7.71830000,
     double lng = 109.01500000,
   }) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/stores?latitude=$lat&longitude=$lng'),
+        Uri.parse('${ApiConfig.baseUrl}/stores?latitude=$lat&longitude=$lng'),
       );
 
       if (response.statusCode == 200) {
@@ -28,15 +26,14 @@ class ApiService {
     }
   }
 
-  // 2. Claim Toko (Mulai Kunjungan)
   static Future<Map<String, dynamic>> claimStore({
     required int storeId,
     required int salesId,
   }) async {
     try {
       final response = await http.post(
-        Uri.parse('$baseUrl/stores/claim'),
-        headers: {'Content-Type': 'application/json'},
+        Uri.parse('${ApiConfig.baseUrl}/stores/claim'),
+        headers: ApiConfig.headers,
         body: jsonEncode({'store_id': storeId, 'sales_id': salesId}),
       );
 
@@ -48,13 +45,11 @@ class ApiService {
           'message': body['message'] ?? 'Berhasil klaim toko.',
           'data': body['data'],
         };
-      } else {
-        // Menangkap error 400 (Toko sedang dikunjungi sales lain)
-        return {
-          'success': false,
-          'message': body['message'] ?? 'Gagal me-klaim toko.',
-        };
       }
+      return {
+        'success': false,
+        'message': body['message'] ?? 'Gagal me-klaim toko.',
+      };
     } catch (e) {
       return {'success': false, 'message': 'Terjadi kesalahan jaringan.'};
     }

@@ -12,8 +12,8 @@ class BottomNavWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryNavy = Color(0xFF1E3A60); // Warna teks & ikon navy
-    const pillIndicator = Color(0xFFD9E4EF); // Warna kapsul/pill aktif
+    const primaryNavy = Color(0xFF1E3A60);
+    const pillIndicator = Color(0xFFD9E4EF);
 
     return Container(
       decoration: BoxDecoration(
@@ -51,7 +51,7 @@ class BottomNavWidget extends StatelessWidget {
             const NavigationDestination(
               icon: Icon(Icons.rate_review_outlined),
               selectedIcon: Icon(Icons.rate_review),
-              label: 'Resensi',
+              label: 'Retensi',
             ),
             const NavigationDestination(
               icon: Icon(Icons.inventory_2_outlined),
