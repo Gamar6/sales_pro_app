@@ -64,6 +64,8 @@ class _StockPageState extends State<StockPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result['message'] ?? 'Gagal memuat data stok'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -90,18 +92,10 @@ class _StockPageState extends State<StockPage> {
     // 2. Sorting / Pengurutan Data
     switch (_selectedSort) {
       case 'Stok Terbanyak':
-        filtered.sort((a, b) {
-          final int stockA = int.tryParse(a.level) ?? 0;
-          final int stockB = int.tryParse(b.level) ?? 0;
-          return stockB.compareTo(stockA);
-        });
+        filtered.sort((a, b) => b.rawQty.compareTo(a.rawQty));
         break;
       case 'Stok Tersedikit':
-        filtered.sort((a, b) {
-          final int stockA = int.tryParse(a.level) ?? 0;
-          final int stockB = int.tryParse(b.level) ?? 0;
-          return stockA.compareTo(stockB);
-        });
+        filtered.sort((a, b) => a.rawQty.compareTo(b.rawQty));
         break;
       case 'Nama (A-Z)':
         filtered.sort(
@@ -397,15 +391,13 @@ class _StockPageState extends State<StockPage> {
       child: Row(
         children: [
           // 1. Gambar Produk
-          // 1. Gambar Produk
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
             child: SizedBox(
               width: 64,
               height: 64,
               child: Image.network(
-                product
-                    .displayImageUrl, // Langsung panggil getter yang sudah aman
+                product.displayImageUrl,
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
                   color: const Color(0xFFEFF4FF),

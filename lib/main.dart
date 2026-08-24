@@ -1,27 +1,52 @@
 import 'package:flutter/material.dart';
-import 'screens/home/home.dart';
-// import 'screens/store_route_screen.dar';
-import 'screens/auth/login.dart';
-import 'screens/splash_screen.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-void main() {
-  runApp(const FieldSalesApp());
+import 'screens/auth/login_screen.dart';
+import 'screens/home/home.dart';
+
+void main() async {
+  WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+
+  // 1. Tahan splash bawaan HP
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
+  // 2. Cek status login
+  bool isAuthenticated = await _checkAuthToken();
+
+  // 3. Lepas splash bawaan HP
+  FlutterNativeSplash.remove();
+
+  // 4. Jalankan app langsung ke login / home
+  runApp(FieldSalesApp(isAuthenticated: isAuthenticated));
+}
+
+Future<bool> _checkAuthToken() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    return token != null && token.isNotEmpty;
+  } catch (e) {
+    return false;
+  }
 }
 
 class FieldSalesApp extends StatelessWidget {
-  const FieldSalesApp({Key? key}) : super(key: key);
+  final bool isAuthenticated;
+
+  const FieldSalesApp({super.key, required this.isAuthenticated});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      title: 'Sales App',
       debugShowCheckedModeBanner: false,
-      title: 'Field Sales Pro',
-      theme: ThemeData(
-        primaryColor: const Color(0xFF031636),
-        scaffoldBackgroundColor: const Color(0xFFF8F9FF),
-        fontFamily: 'Inter',
-      ),
-      home: const LoginScreen(),
+      // Langsung tentukan halaman awal berdasarkan status login
+      initialRoute: isAuthenticated ? '/home' : '/login',
+      routes: {
+        '/login': (context) => const LoginScreen(),
+        '/home': (context) => const HomeScreen(),
+      },
     );
   }
 }

@@ -13,9 +13,9 @@ class StockResponse {
 
   factory StockResponse.fromJson(Map<String, dynamic> json) {
     return StockResponse(
-      status: json['status'] ?? 'error',
-      totalSkus: json['total_skus'] ?? 0,
-      lowStockCount: json['low_stock_count'] ?? 0,
+      status: json['status']?.toString() ?? 'error',
+      totalSkus: (json['total_skus'] as num?)?.toInt() ?? 0,
+      lowStockCount: (json['low_stock_count'] as num?)?.toInt() ?? 0,
       data: (json['data'] as List? ?? [])
           .map((item) => StockProduct.fromJson(item))
           .toList(),
@@ -46,20 +46,19 @@ class StockProduct {
 
   factory StockProduct.fromJson(Map<String, dynamic> json) {
     return StockProduct(
-      id: json['id'] ?? 0,
-      title: json['title'] ?? '',
-      subtitle: json['subtitle'] ?? '',
-      level: json['level'] ?? '0',
-      rawQty: json['raw_qty'] ?? 0,
-      unit: json['unit'] ?? 'pcs',
-      status: json['status'] ?? 'In Stock',
-      imageUrl:
-          json['imageUrl'] ??
-          json['image_url'], // Antisipasi beda format key dari API
+      id: json['id'] is int
+          ? json['id']
+          : int.tryParse(json['id']?.toString() ?? '') ?? 0,
+      title: json['title']?.toString() ?? '',
+      subtitle: json['subtitle']?.toString() ?? '',
+      level: json['level']?.toString() ?? '0',
+      rawQty: (json['raw_qty'] as num?)?.toInt() ?? 0,
+      unit: json['unit']?.toString() ?? 'pcs',
+      status: json['status']?.toString() ?? 'In Stock',
+      imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
     );
   }
 
-  // Getter otomatis untuk URL gambar (Lebih rapi dan idiomatik di Dart)
   String get displayImageUrl {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return imageUrl!;
