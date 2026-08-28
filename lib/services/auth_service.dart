@@ -5,7 +5,6 @@ import '../models/login_response.dart';
 import '../services/api_config.dart';
 
 class AuthService {
-
   Future<LoginResponse> login(String username, String password) async {
     try {
       final response = await http.post(
@@ -20,7 +19,6 @@ class AuthService {
       final Map<String, dynamic> responseData = jsonDecode(response.body);
       final loginResponse = LoginResponse.fromJson(responseData);
 
-      // Jika login berhasil, simpan session
       if (response.statusCode == 200 && loginResponse.token != null) {
         await _saveSession(loginResponse);
       }
@@ -42,6 +40,28 @@ class AuthService {
     if (data.user != null) {
       await prefs.setString('user_id', data.user!.id.toString());
       await prefs.setString('user_name', data.user!.name);
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token != null) {
+        await http.post(
+          Uri.parse('${ApiConfig.baseUrl}/login'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        );
+      }
+    } catch (e) {
+    } finally {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('token');
     }
   }
 }

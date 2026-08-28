@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../widgets/bottom_nav_widget.dart';
 import './history_visit.dart';
-import './report.dart';
 import '../retensi/retensi_toko.dart';
 import '../sim_harga/sim_harga.dart';
 import '../stock/stock_page.dart';
+import '../profile/profile_screen.dart';
+import '../../services/visit_service.dart';
+import '../../services/api_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -14,35 +16,62 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0; // Default di Home
-  final List<Widget> _pages = [
-    // Indeks 0: Home (Dashboard kamu)
-    // Karena dashboard butuh struktur Column khusus (dengan banner sticky),
-    // kita bungkus logikanya atau buat method terpisah.
-    const SizedBox.shrink(), // Placeholder, nanti ditangani kondisi di body
-    // Indeks 1: Halaman Report (sesuai import './report.dart')
-    // const ReportPage(), // Sesuaikan dengan nama kelas di report.dart kamu
-    // Indeks 2: Halaman History Visit (sesuai import './history_visit.dart')
-    const VisitHistoryPage(),
+  int _currentIndex = 0;
+  String? _activeOutletName;
+  String? _activeVisitId;
+  final VisitService _visitService = VisitService();
+  final ApiService _apiService = ApiService();
 
-    // Indeks 3 & 4 (jika ada, sesuaikan dengan total menu di BottomNavWidget kamu)
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadActiveVisit();
+  }
+
+  Future<void> _loadActiveVisit() async {
+    final activeVisit = await _visitService.getActiveVisitDetails();
+    if (!mounted || activeVisit == null) return;
+
+    var outletName = activeVisit['outlet_name']?.toString();
+    if (outletName == null || outletName.isEmpty) {
+      final partnerId = int.tryParse(
+        activeVisit['odoo_partner_id']?.toString() ?? '',
+      );
+      if (partnerId != null) {
+        final partners = await _apiService.fetchPartners();
+        for (final partner in partners) {
+          if (partner.partnerId == partnerId) {
+            outletName = partner.partnerName;
+            break;
+          }
+        }
+      }
+    }
+
+    if (!mounted || outletName == null || outletName.isEmpty) return;
+
+    setState(() {
+      _activeVisitId = activeVisit['visit_id']?.toString();
+      _activeOutletName = outletName;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF6FAFF),
-      // AppBar hanya muncul di indeks 0 (Home)
       appBar: _currentIndex == 0 ? _buildAppBar() : null,
-
-      // Mengatur halaman yang tampil berdasarkan _currentIndex
       body: _getPagesBody(),
-
       bottomNavigationBar: BottomNavWidget(
         currentIndex: _currentIndex,
-        onTap: (index) {
+        onTap: (index) => setState(() => _currentIndex = index),
+        activeOutletName: _activeOutletName,
+        activeVisitId: _activeVisitId,
+        onFinishVisit: () {
+          // TUTUP STICKY BANNER (Tanpa pindah halaman)
           setState(() {
-            _currentIndex = index;
+            _activeOutletName = null;
+            _activeVisitId = null;
           });
         },
       ),
@@ -56,93 +85,57 @@ class _HomeScreenState extends State<HomeScreen> {
         return Column(
           children: [
             Expanded(child: _buildDashboardContent(context)),
-            _buildActiveVisitBanner(),
+            _buildActiveVisitBanner(), // Banner di halaman Home
           ],
         );
       case 1:
-        return const StoreReviewPage(); 
+        return StoreReviewPage(
+          onVisitOutlet: (selectedOutletName, visitId) {
+            setState(() {
+              _activeOutletName = selectedOutletName;
+              _activeVisitId = visitId;
+            });
+          },
+        );
       case 2:
-      return const StockPage();
+        return const StockPage();
       case 3:
         return const PriceSimulationPage();
+      case 4:
+        return const ProfileScreen();
       default:
         return Center(child: Text("Halaman Indeks $_currentIndex"));
     }
   }
 
-  @override
-  Widget buildDashboardContent(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6FAFF),
-      appBar: _currentIndex == 0 ? _buildAppBar() : null,
-
-      body: _currentIndex == 0
-          ? Column(
-              children: [
-                // Konten utama scrollable
-                Expanded(child: _buildDashboardContent(context)),
-                // Banner Kunjungan Aktif (Sticky tepat di atas BottomNav)
-                _buildActiveVisitBanner(),
-              ],
-            )
-          : Center(child: Text("Halaman Indeks $_currentIndex")),
-
-      bottomNavigationBar: BottomNavWidget(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-      ),
-    );
-  }
-
+  // WIDGET STICKY BANNER DI HALAMAN HOME
   Widget _buildActiveVisitBanner() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(
-          top: BorderSide(
-            color: Color(0xFFC2C6D4),
-            width: 1,
-          ), // Garis pembatas atas
-          left: BorderSide(color: Color(0xFF003F87), width: 4),
-        ),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'KUNJUNGAN AKTIF',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF003F87),
-                ),
-              ),
-              const Text(
-                'Ahmad Frozen Food',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
+    if (_activeOutletName == null) return const SizedBox.shrink();
 
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const VisitFormPage()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF003F87),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      color: const Color(0xFFFFF3E0),
+      child: Row(
+        children: [
+          const Icon(Icons.storefront, color: Color(0xFFE65100), size: 20),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Kunjungan Aktif: $_activeOutletName',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFE65100),
+              ),
             ),
-            child: const Text('Selesai', style: TextStyle(color: Colors.white)),
+          ),
+          InkWell(
+            onTap: () => setState(() {
+              _activeOutletName = null;
+              _activeVisitId = null;
+            }),
+            child: const Icon(Icons.close, size: 18, color: Color(0xFFE65100)),
           ),
         ],
       ),
@@ -187,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
                         Text(
-                          'Selamat Pagi, [Nama Sales]!',
+                          'Selamat Pagi, Sales!',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -222,7 +215,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- KONTEN DASHBOARD BIASA (TANPA STACK MELAYANG) ---
   Widget _buildDashboardContent(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -389,7 +381,11 @@ class _HomeScreenState extends State<HomeScreen> {
           SizedBox(
             height: 44,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: () {
+                setState(() {
+                  _currentIndex = 1; // Pindah ke Tab Retensi Toko
+                });
+              },
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF003F87),
                 foregroundColor: Colors.white,
@@ -411,7 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           const SizedBox(height: 16),
 
-          // 4. Visit History Section
+          // 3. Visit History Section
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -457,7 +453,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Widget pendukung untuk item Riwayat Kunjungan
   Widget _buildHistoryItem(String title, String subtitle, String time) {
     return Container(
       padding: const EdgeInsets.all(8),
