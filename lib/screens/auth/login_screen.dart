@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import ini untuk simpan token
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/login_response.dart';
 import '../../services/auth_service.dart';
 
@@ -41,23 +41,26 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (response.success || response.token != null) {
-        // -------------------------------------------------------------
-        // PROSES PENYIMPANAN TOKEN (REMEMBER LOGIN)
-        // -------------------------------------------------------------
-        if (response.token != null) {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('token', response.token!);
+        final prefs = await SharedPreferences.getInstance();
 
-          // Opsional: Jika backend memberikan data user (misal: nama / role)
-          // await prefs.setString('user_name', response.user?.name ?? '');
+        // 1. Simpan Token
+        if (response.token != null) {
+          await prefs.setString('token', response.token!);
+        }
+
+        // 2. Simpan Nama User / Sales ke SharedPreferences
+        if (response.user?.name != null) {
+          await prefs.setString('user_name', response.user!.name!);
         }
 
         if (!mounted) return;
 
-        // Pindah ke Halaman Home dan hapus tumpukan halaman login
+        // Pindah ke Halaman Home
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        _showErrorSnackBar(response.message);
+        _showErrorSnackBar(
+          response.message ?? 'Login gagal. Silakan coba lagi.',
+        );
       }
     } catch (e) {
       _showErrorSnackBar('Terjadi kesalahan koneksi. Silakan coba lagi.');
@@ -145,9 +148,11 @@ class _LoginScreenState extends State<LoginScreen> {
           children: [
             TextFormField(
               controller: _usernameController,
+              textInputAction: TextInputAction.next,
               style: const TextStyle(color: Color(0xFF0B1C30)),
-              validator: (val) =>
-                  val == null || val.isEmpty ? 'Username wajib diisi' : null,
+              validator: (val) => val == null || val.trim().isEmpty
+                  ? 'Username wajib diisi'
+                  : null,
               decoration: _inputDecoration(
                 hintText: 'Username',
                 prefixIcon: Icons.person,
@@ -157,9 +162,12 @@ class _LoginScreenState extends State<LoginScreen> {
             TextFormField(
               controller: _passwordController,
               obscureText: _obscurePassword,
+              textInputAction: TextInputAction.done,
+              onFieldSubmitted: (_) => _handleLogin(),
               style: const TextStyle(color: Color(0xFF0B1C30)),
-              validator: (val) =>
-                  val == null || val.isEmpty ? 'Password wajib diisi' : null,
+              validator: (val) => val == null || val.trim().isEmpty
+                  ? 'Password wajib diisi'
+                  : null,
               decoration: _inputDecoration(
                 hintText: 'Password',
                 prefixIcon: Icons.lock,

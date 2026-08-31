@@ -102,4 +102,34 @@ class VisitService {
       throw Exception(response.body);
     }
   }
+
+  Future<List<dynamic>> getVisitHistory() async {
+    try {
+      final headers = await ApiConfig.getAuthHeaders();
+      final response = await http.get(
+        Uri.parse(
+          '${ApiConfig.baseUrl}/store-visits/history',
+        ), // Sesuaikan endpoint API history di Laravel kamu
+        headers: headers,
+      );
+
+      if (response.statusCode != 200) return [];
+
+      final decoded = jsonDecode(response.body);
+
+      // Sesuaikan struktur parsing ini dengan format JSON dari response backend Laravel
+      if (decoded is Map<String, dynamic> && decoded['data'] != null) {
+        final data = decoded['data'];
+        if (data is List) {
+          return data;
+        }
+      } else if (decoded is List) {
+        return decoded;
+      }
+
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
 }
