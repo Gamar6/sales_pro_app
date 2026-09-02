@@ -1,6 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
+
 import '../../models/partner_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_service.dart';
@@ -8,7 +12,6 @@ import '../../services/store_visit_service.dart';
 import '../home/report.dart';
 
 class StoreReviewPage extends StatefulWidget {
-  // Callback untuk menginfokan nama toko ke MainScreen
   final Function(String outletName, String visitId)? onVisitOutlet;
 
   const StoreReviewPage({Key? key, this.onVisitOutlet}) : super(key: key);
@@ -18,11 +21,11 @@ class StoreReviewPage extends StatefulWidget {
 }
 
 class _StoreReviewPageState extends State<StoreReviewPage> {
-  // 1. Service Instance
   final ApiService _apiService = ApiService();
   final LocationService _locationService = LocationService();
+  final MapController _mapController = MapController();
+  final ScrollController _scrollController = ScrollController();
 
-  // 2. State Management
   List<Partner> _partners = [];
   List<Partner> _filteredPartners = [];
   List<String> _availableCities = ['Semua'];
@@ -30,12 +33,14 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   bool _isLoading = true;
   String _errorMessage = '';
 
-  // 3. State Pencarian, Filter, & Sorting
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   String _selectedStatus = 'Semua';
   String _selectedCity = 'Semua';
   String _selectedSort = 'Default';
+
+  bool _isMapExpanded = false;
+  double _currentZoom = 13.5;
 
   @override
   void initState() {
@@ -46,6 +51,8 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _mapController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -72,6 +79,16 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
         _availableCities = cities;
         _isLoading = false;
       });
+
+      if (_currentPosition != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          _mapController.move(
+            latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            _currentZoom,
+          );
+        });
+      }
+
       _applyFilterAndSort();
     } catch (e) {
       if (!mounted) return;
@@ -85,7 +102,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   void _applyFilterAndSort() {
     List<Partner> result = List.from(_partners);
 
-    // 1. Filter by Search Query
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
       result = result.where((partner) {
@@ -95,7 +111,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       }).toList();
     }
 
-    // 2. Filter by Status
     if (_selectedStatus != 'Semua') {
       result = result
           .where(
@@ -106,7 +121,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
           .toList();
     }
 
-    // 3. Filter by City
     if (_selectedCity != 'Semua') {
       result = result
           .where(
@@ -116,7 +130,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
           .toList();
     }
 
-    // 4. Sorting
     switch (_selectedSort) {
       case 'Terdekat':
         result.sort((a, b) {
@@ -146,6 +159,21 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     setState(() => _filteredPartners = result);
   }
 
+  void _scrollToStore(int partnerId) {
+    int index = _filteredPartners.indexWhere((p) => p.partnerId == partnerId);
+
+    if (index != -1) {
+      double itemHeight = 160.0;
+      double targetOffset = index * itemHeight;
+
+      _scrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
   void _showSelectionBottomSheet({
     required BuildContext context,
     required String title,
@@ -168,10 +196,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -206,6 +231,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       backgroundColor: const Color(0xFFF8F9FF),
       appBar: _buildAppBar(),
       body: CustomScrollView(
+        controller: _scrollController,
         slivers: [
           SliverToBoxAdapter(child: _buildMapHeader()),
           SliverToBoxAdapter(
@@ -277,31 +303,121 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   }
 
   Widget _buildMapHeader() {
-    return Container(
-      height: 160,
-      decoration: const BoxDecoration(color: Color(0xFFCBDBF5)),
+    final validPartners = _filteredPartners
+        .where((p) => p.latitude != 0.0 && p.longitude != 0.0)
+        .toList();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      height: _isMapExpanded ? 400 : 220,
       child: Stack(
         children: [
-          Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.bottomCenter,
-                end: Alignment.topCenter,
-                colors: [
-                  const Color(0xFFF8F9FF),
-                  const Color(0xFFF8F9FF).withOpacity(0),
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _currentPosition != null
+                  ? latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                  : const latlong.LatLng(-6.2088, 106.8456),
+              initialZoom: _currentZoom,
+              onPositionChanged: (position, hasGesture) {
+                if (hasGesture && position.zoom != null && position.zoom != _currentZoom) {
+                  setState(() => _currentZoom = position.zoom!);
+                }
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.app',
+              ),
+              MarkerLayer(
+                markers: [
+                  if (_currentPosition != null)
+                    Marker(
+                      point: latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                      width: 44,
+                      height: 44,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.blue, width: 2),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.my_location, color: Colors.blue, size: 22),
+                        ),
+                      ),
+                    ),
+                  ...validPartners.map((partner) {
+                    final statusTheme = StatusConfig.getTheme(partner.retensiStatus);
+                    return Marker(
+                      point: latlong.LatLng(partner.latitude, partner.longitude),
+                      width: 110,
+                      height: 65,
+                      child: GestureDetector(
+                        onTap: () {
+                          _mapController.move(
+                            latlong.LatLng(partner.latitude, partner.longitude),
+                            15.0,
+                          );
+                          _scrollToStore(partner.partnerId);
+                        },
+                        child: CustomStoreMarker(
+                          partner: partner,
+                          statusColor: statusTheme.borderColor,
+                          showLabel: _currentZoom >= 14.0,
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 ],
+              ),
+            ],
+          ),
+          Positioned(
+            top: 16,
+            right: 16,
+            child: CircleAvatar(
+              backgroundColor: Colors.white.withOpacity(0.9),
+              radius: 22,
+              child: IconButton(
+                icon: Icon(
+                  _isMapExpanded ? Icons.close : Icons.open_in_full,
+                  color: const Color(0xFF031636),
+                  size: 22,
+                ),
+                onPressed: () {
+                  setState(() => _isMapExpanded = !_isMapExpanded);
+                },
               ),
             ),
           ),
-          const Positioned(
-            bottom: 16,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
+                    colors: [
+                      const Color(0xFFF8F9FF),
+                      const Color(0xFFF8F9FF).withOpacity(0),
+                      const Color(0xFFCBDBF5).withOpacity(0.15),
+                    ],
+                    stops: const [0.0, 0.6, 1.0],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 12,
             left: 16,
             right: 16,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                const Text(
                   'WILAYAH AKTIF',
                   style: TextStyle(
                     fontFamily: 'Inter',
@@ -311,13 +427,13 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                     letterSpacing: 0.5,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  'Data Semua Wilayah',
-                  style: TextStyle(
+                  _selectedCity == 'Semua' ? 'Data Semua Wilayah' : 'Data Wilayah $_selectedCity',
+                  style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 18,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.bold,
                     color: Color(0xFF031636),
                   ),
                 ),
@@ -466,6 +582,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 12.0),
             child: PartnerCard(
+              key: ValueKey(partner.partnerId),
               partner: partner,
               distanceText: _locationService.calculateDistanceString(
                 _currentPosition,
@@ -526,7 +643,114 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 }
 
 // ============================================================================
-// WIDGET CONFIG & PARTNER CARD
+// WIDGET MARKER PETA (DENGAN LOGIKA PENANDA KUNJUNGAN)
+// ============================================================================
+
+class CustomStoreMarker extends StatelessWidget {
+  final Partner partner;
+  final Color statusColor;
+  final bool showLabel;
+
+  const CustomStoreMarker({
+    Key? key,
+    required this.partner,
+    required this.statusColor,
+    required this.showLabel,
+  }) : super(key: key);
+
+  bool get _isCompleted =>
+      partner.visitStatus == 'COMPLETED' || partner.visitStatus == 'SELESAI';
+
+  @override
+  Widget build(BuildContext context) {
+    return Opacity(
+      opacity: partner.isOccupied ? 0.75 : 1.0,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (showLabel)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: partner.isOccupied
+                      ? (_isCompleted ? const Color(0xFF006C49) : const Color(0xFFD93025))
+                      : statusColor.withOpacity(0.5),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                partner.partnerName,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF031636),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                maxLines: 1,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          const SizedBox(height: 2),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                height: 36,
+                width: 36,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: partner.isOccupied
+                      ? Border.all(
+                          color: _isCompleted
+                              ? const Color(0xFF006C49)
+                              : const Color(0xFFD93025),
+                          width: 2,
+                        )
+                      : null,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.2),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Icon(Icons.location_on, color: statusColor, size: 24),
+              ),
+              // Badge Penanda di Marker jika toko Sedang / Sudah Dikunjungi
+              if (partner.isOccupied)
+                Positioned(
+                  top: -2,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: _isCompleted
+                          ? const Color(0xFF006C49)
+                          : const Color(0xFFD93025),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      _isCompleted ? Icons.check : Icons.person,
+                      size: 10,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// STATUS CONFIG & PARTNER CARD (LOGIKA SPANDUK & STATUS TETAP DITERAPKAN)
 // ============================================================================
 
 class StatusConfig {
@@ -602,8 +826,19 @@ class PartnerCard extends StatelessWidget {
     this.onVisit,
   }) : super(key: key);
 
+  bool get _isCompleted =>
+      partner.visitStatus == 'COMPLETED' || partner.visitStatus == 'SELESAI';
+
+  bool get _isOnVisit =>
+      partner.visitStatus == 'ON_VISIT' ||
+      partner.visitStatus == 'ON VISIT' ||
+      partner.visitStatus == 'CLAIMED' ||
+      partner.visitStatus == 'IN_PROGRESS';
+
+  bool get _shouldFade => partner.isOccupied;
+
   Future<void> _openGoogleMaps(BuildContext context) async {
-    if (partner.latitude == null || partner.longitude == null) return;
+    if (partner.latitude == 0.0 && partner.longitude == 0.0) return;
 
     final Uri url = Uri.parse(
       'https://www.google.com/maps/search/?api=1&query=${partner.latitude},${partner.longitude}',
@@ -611,235 +846,311 @@ class PartnerCard extends StatelessWidget {
     try {
       if (await canLaunchUrl(url)) {
         await launchUrl(url, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          _showSnackBar(context, 'Tidak dapat membuka Google Maps');
-        }
       }
     } catch (e) {
       debugPrint('Error launching maps: $e');
     }
   }
 
-  void _showSnackBar(BuildContext context, String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = StatusConfig.getTheme(partner.retensiStatus);
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFC5C6CF)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
+    String buttonText = 'Kunjungi';
+    if (_isCompleted) {
+      buttonText = 'Selesai';
+    } else if (partner.isOccupied) {
+      buttonText = 'Sedang Dikunjungi';
+    }
+
+    final nameDisplay =
+        partner.salesName.isNotEmpty ? partner.salesName : 'Sales';
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 300),
+      opacity: _shouldFade ? 0.6 : 1.0,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _isOnVisit
+                ? const Color(0xFF0265DC)
+                : const Color(0xFFC5C6CF),
+            width: _isOnVisit ? 1.5 : 1.0,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: Container(width: 6, color: theme.borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.02),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0).copyWith(left: 22),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              partner.partnerName,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF0B1C30),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '${partner.alamat}, ${partner.kota}',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 14,
-                                color: Color(0xFF44474E),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.chipBgColor,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                            color: theme.chipTextColor.withOpacity(0.2),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              theme.chipIcon,
-                              size: 14,
-                              color: theme.chipTextColor,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              partner.retensiStatus.toUpperCase(),
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: theme.chipTextColor,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.history,
-                        size: 14,
-                        color: Color(0xFF75777F),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Kunjungan terakhir: ${partner.daysSince} hari lalu',
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 12,
-                          color: Color(0xFF75777F),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: Color(0xFFDCE9FF), width: 1.0),
-                      ),
-                    ),
-                    padding: const EdgeInsets.only(top: 12),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: Stack(
+            children: [
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: Container(width: 6, color: theme.borderColor),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16.0).copyWith(left: 22),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: Row(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Icon(
-                                Icons.near_me,
-                                size: 12,
-                                color: Color(0xFF75777F),
+                              Text(
+                                partner.partnerName,
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF0B1C30),
+                                ),
                               ),
-                              const SizedBox(width: 4),
-                              Expanded(
-                                child: Text(
-                                  'Jarak: $distanceText',
-                                  style: const TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 11,
-                                    color: Color(0xFF75777F),
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              const SizedBox(height: 4),
+                              Text(
+                                '${partner.alamat}, ${partner.kota}',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 14,
+                                  color: Color(0xFF44474E),
                                 ),
                               ),
                             ],
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            SizedBox(
-                              height: 40,
-                              width: 40,
-                              child: OutlinedButton(
-                                onPressed: () => _openGoogleMaps(context),
-                                style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  side: const BorderSide(
-                                    color: Color(0xFF031636),
-                                    width: 2,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.route,
-                                  size: 20,
-                                  color: Color(0xFF031636),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: theme.chipBgColor,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: theme.chipTextColor.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                theme.chipIcon,
+                                size: 14,
+                                color: theme.chipTextColor,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                partner.retensiStatus.toUpperCase(),
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: theme.chipTextColor,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            SizedBox(
-                              height: 40,
-                              child: ElevatedButton(
-                                onPressed: onVisit,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF031636),
-                                  foregroundColor: Colors.white,
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 16,
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Kunjungi',
-                                  style: TextStyle(
-                                    fontFamily: 'Inter',
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.history,
+                          size: 14,
+                          color: Color(0xFF75777F),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Order terakhir: ${partner.daysSince} hari lalu',
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 12,
+                            color: Color(0xFF75777F),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      decoration: const BoxDecoration(
+                        border: Border(
+                          top: BorderSide(
+                            color: Color(0xFFDCE9FF),
+                            width: 1.0,
+                          ),
+                        ),
+                      ),
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Row(
+                              children: [
+                                const Icon(
+                                  Icons.near_me,
+                                  size: 12,
+                                  color: Color(0xFF75777F),
+                                ),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    'Jarak: $distanceText',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 11,
+                                      color: Color(0xFF75777F),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                height: 40,
+                                width: 40,
+                                child: OutlinedButton(
+                                  onPressed: () => _openGoogleMaps(context),
+                                  style: OutlinedButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    side: const BorderSide(
+                                      color: Color(0xFF031636),
+                                      width: 2,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.route,
+                                    size: 20,
+                                    color: Color(0xFF031636),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              SizedBox(
+                                height: 40,
+                                child: ElevatedButton(
+                                  onPressed: partner.isOccupied ? null : onVisit,
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFF031636),
+                                    disabledBackgroundColor:
+                                        const Color(0xFFC5C6CF),
+                                    foregroundColor: Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    buttonText,
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              if (_shouldFade) ...[
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.white.withOpacity(0.35),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  right: 12,
+                  top: 0,
+                  bottom: 0,
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _isCompleted
+                            ? const Color(0xFF006C49)
+                            : const Color(0xFFD93025),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.18),
+                            blurRadius: 6,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isCompleted
+                                ? Icons.check_circle
+                                : Icons.person_pin_circle,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _isCompleted
+                                  ? 'Sudah dikunjungi oleh $nameDisplay'
+                                  : 'Sedang dikunjungi oleh $nameDisplay',
+                              style: const TextStyle(
+                                fontFamily: 'Inter',
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );

@@ -145,7 +145,6 @@ class _HomeScreenState extends State<HomeScreen> {
         return Column(
           children: [
             Expanded(child: _buildDashboardContent(context)),
-            _buildActiveVisitBanner(),
           ],
         );
       case 1:
@@ -166,39 +165,6 @@ class _HomeScreenState extends State<HomeScreen> {
       default:
         return Center(child: Text("Halaman Indeks $_currentIndex"));
     }
-  }
-
-  Widget _buildActiveVisitBanner() {
-    if (_activeOutletName == null) return const SizedBox.shrink();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      color: const Color(0xFFFFF3E0),
-      child: Row(
-        children: [
-          const Icon(Icons.storefront, color: Color(0xFFE65100), size: 20),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Kunjungan Aktif: $_activeOutletName',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFFE65100),
-              ),
-            ),
-          ),
-          InkWell(
-            onTap: () => setState(() {
-              _activeOutletName = null;
-              _activeVisitId = null;
-            }),
-            child: const Icon(Icons.close, size: 18, color: Color(0xFFE65100)),
-          ),
-        ],
-      ),
-    );
   }
 
   PreferredSizeWidget _buildAppBar() {
@@ -479,9 +445,7 @@ class _PerformanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int diff = visitedToday - targetToday;
-    final String achievementText = diff >= 0
-        ? '(TERCAPAI +$diff)'
-        : '(KURANG ${diff.abs()})';
+    final String achievementText = diff >= 0 ? ' (Tercapai)' : ' (Belum tercapai)';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -559,16 +523,7 @@ class _PerformanceCard extends StatelessWidget {
               ),
               minHeight: 8,
             ),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Kerja Bagus!... Terus tingkatkan kunjungan Anda.',
-            style: TextStyle(
-              fontSize: 12,
-              fontStyle: FontStyle.italic,
-              color: Color(0xFF424752),
-            ),
-          ),
+          ),        
           const SizedBox(height: 12),
           _MonthlyTripTile(monthlyTrips: monthlyTrips),
         ],
