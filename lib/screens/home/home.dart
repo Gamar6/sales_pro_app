@@ -4,6 +4,8 @@ import '../../services/api_service.dart';
 import '../../services/visit_service.dart';
 import '../../widgets/bottom_nav_widget.dart';
 import '../../widgets/home_header.dart';
+import '../../models/stock_model.dart';
+import '../../services/stock_service.dart';
 import '../profile/profile_screen.dart';
 import '../retensi/retensi_toko.dart';
 import '../sim_harga/sim_harga.dart';
@@ -31,6 +33,11 @@ class _HomeScreenState extends State<HomeScreen> {
   int _monthlyTrips = 0;
   List<dynamic> _recentVisits = [];
 
+  List<StockProduct> _stockProducts = [];
+  bool _isLoadingStock = false;
+
+
+
   final VisitService _visitService = VisitService();
   final ApiService _apiService = ApiService();
 
@@ -40,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSalesName();
     _loadActiveVisit();
     _loadDashboardData();
+    _loadStockProducts();
   }
 
   Future<void> _loadSalesName() async {
@@ -117,6 +125,43 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _loadStockProducts() async {
+    if (_isLoadingStock) return;
+
+    setState(() {
+      _isLoadingStock = true;
+    });
+
+    try {
+      final result = await StockService.fetchStocks();
+
+      if (!mounted) return;
+
+      if (result['success'] == true) {
+        setState(() {
+          _stockProducts = (result['data'] as List)
+              .map((item) => StockProduct.fromJson(item))
+              .toList();
+
+          _isLoadingStock = false;
+        });
+      } else {
+        setState(() {
+          _isLoadingStock = false;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoadingStock = false;
+      });
+
+      debugPrint('Gagal mengambil stock: $e');
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,7 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
       case 2:
         return const StockPage();
       case 3:
-        return const PriceSimulationPage();
+        return PriceSimulationPage(products: _stockProducts);
       case 4:
         return const ProfileScreen();
       default:

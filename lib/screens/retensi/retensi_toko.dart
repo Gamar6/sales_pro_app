@@ -83,7 +83,10 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       if (_currentPosition != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _mapController.move(
-            latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            latlong.LatLng(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+            ),
             _currentZoom,
           );
         });
@@ -196,7 +199,10 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             children: [
               Text(
                 title,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(height: 12),
               Expanded(
@@ -316,11 +322,16 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             mapController: _mapController,
             options: MapOptions(
               initialCenter: _currentPosition != null
-                  ? latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude)
+                  ? latlong.LatLng(
+                      _currentPosition!.latitude,
+                      _currentPosition!.longitude,
+                    )
                   : const latlong.LatLng(-6.2088, 106.8456),
               initialZoom: _currentZoom,
               onPositionChanged: (position, hasGesture) {
-                if (hasGesture && position.zoom != null && position.zoom != _currentZoom) {
+                if (hasGesture &&
+                    position.zoom != null &&
+                    position.zoom != _currentZoom) {
                   setState(() => _currentZoom = position.zoom!);
                 }
               },
@@ -328,13 +339,17 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.app',
+                userAgentPackageName:
+                    'com.example.sales_app', // Ganti dengan ID package aplikasi kamu (cth: android/app/build.gradle)
               ),
               MarkerLayer(
                 markers: [
                   if (_currentPosition != null)
                     Marker(
-                      point: latlong.LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+                      point: latlong.LatLng(
+                        _currentPosition!.latitude,
+                        _currentPosition!.longitude,
+                      ),
                       width: 44,
                       height: 44,
                       child: Container(
@@ -344,14 +359,23 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                           border: Border.all(color: Colors.blue, width: 2),
                         ),
                         child: const Center(
-                          child: Icon(Icons.my_location, color: Colors.blue, size: 22),
+                          child: Icon(
+                            Icons.my_location,
+                            color: Colors.blue,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
                   ...validPartners.map((partner) {
-                    final statusTheme = StatusConfig.getTheme(partner.retensiStatus);
+                    final statusTheme = StatusConfig.getTheme(
+                      partner.retensiStatus,
+                    );
                     return Marker(
-                      point: latlong.LatLng(partner.latitude, partner.longitude),
+                      point: latlong.LatLng(
+                        partner.latitude,
+                        partner.longitude,
+                      ),
                       width: 110,
                       height: 65,
                       child: GestureDetector(
@@ -429,7 +453,9 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  _selectedCity == 'Semua' ? 'Data Semua Wilayah' : 'Data Wilayah $_selectedCity',
+                  _selectedCity == 'Semua'
+                      ? 'Data Semua Wilayah'
+                      : 'Data Wilayah $_selectedCity',
                   style: const TextStyle(
                     fontFamily: 'Inter',
                     fontSize: 18,
@@ -676,7 +702,9 @@ class CustomStoreMarker extends StatelessWidget {
                 borderRadius: BorderRadius.circular(4),
                 border: Border.all(
                   color: partner.isOccupied
-                      ? (_isCompleted ? const Color(0xFF006C49) : const Color(0xFFD93025))
+                      ? (_isCompleted
+                            ? const Color(0xFF006C49)
+                            : const Color(0xFFD93025))
                       : statusColor.withOpacity(0.5),
                   width: 0.8,
                 ),
@@ -863,8 +891,9 @@ class PartnerCard extends StatelessWidget {
       buttonText = 'Sedang Dikunjungi';
     }
 
-    final nameDisplay =
-        partner.salesName.isNotEmpty ? partner.salesName : 'Sales';
+    final nameDisplay = partner.salesName.isNotEmpty
+        ? partner.salesName
+        : 'Sales';
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -991,10 +1020,7 @@ class PartnerCard extends StatelessWidget {
                     Container(
                       decoration: const BoxDecoration(
                         border: Border(
-                          top: BorderSide(
-                            color: Color(0xFFDCE9FF),
-                            width: 1.0,
-                          ),
+                          top: BorderSide(color: Color(0xFFDCE9FF), width: 1.0),
                         ),
                       ),
                       padding: const EdgeInsets.only(top: 12),
@@ -1055,11 +1081,14 @@ class PartnerCard extends StatelessWidget {
                               SizedBox(
                                 height: 40,
                                 child: ElevatedButton(
-                                  onPressed: partner.isOccupied ? null : onVisit,
+                                  onPressed: partner.isOccupied
+                                      ? null
+                                      : onVisit,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: const Color(0xFF031636),
-                                    disabledBackgroundColor:
-                                        const Color(0xFFC5C6CF),
+                                    disabledBackgroundColor: const Color(
+                                      0xFFC5C6CF,
+                                    ),
                                     foregroundColor: Colors.white,
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
@@ -1089,9 +1118,7 @@ class PartnerCard extends StatelessWidget {
               ),
               if (_shouldFade) ...[
                 Positioned.fill(
-                  child: Container(
-                    color: Colors.white.withOpacity(0.35),
-                  ),
+                  child: Container(color: Colors.white.withOpacity(0.35)),
                 ),
                 Positioned(
                   left: 12,

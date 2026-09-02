@@ -31,6 +31,7 @@ class StockProduct {
   final int rawQty;
   final String unit;
   final String status;
+  final double price;
   final String? imageUrl;
 
   StockProduct({
@@ -41,6 +42,7 @@ class StockProduct {
     required this.rawQty,
     required this.unit,
     required this.status,
+    required this.price,
     this.imageUrl,
   });
 
@@ -49,12 +51,19 @@ class StockProduct {
       id: json['id'] is int
           ? json['id']
           : int.tryParse(json['id']?.toString() ?? '') ?? 0,
+
       title: json['title']?.toString() ?? '',
       subtitle: json['subtitle']?.toString() ?? '',
       level: json['level']?.toString() ?? '0',
+
       rawQty: (json['raw_qty'] as num?)?.toInt() ?? 0,
+
       unit: json['unit']?.toString() ?? 'pcs',
+
       status: json['status']?.toString() ?? 'In Stock',
+
+      price: (json['price'] as num?)?.toDouble() ?? 0,
+
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
     );
   }
@@ -63,6 +72,7 @@ class StockProduct {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return imageUrl!;
     }
+
     return 'https://www.fivafood.co.id/web/image/product.product/17/image_512?unique=10e2976';
   }
 }
