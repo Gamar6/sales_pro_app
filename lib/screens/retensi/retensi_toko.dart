@@ -4,7 +4,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart' as latlong;
 import 'package:url_launcher/url_launcher.dart';
-
 import '../../models/partner_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_service.dart';
@@ -13,8 +12,9 @@ import '../home/report.dart';
 
 class StoreReviewPage extends StatefulWidget {
   final Function(String outletName, String visitId)? onVisitOutlet;
+  final VoidCallback? onVisitEnded;
 
-  const StoreReviewPage({Key? key, this.onVisitOutlet}) : super(key: key);
+  const StoreReviewPage({super.key, this.onVisitOutlet, this.onVisitEnded});
 
   @override
   State<StoreReviewPage> createState() => _StoreReviewPageState();
@@ -35,12 +35,15 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 
   bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
+  Timer? _searchDebounce;
+  int? _claimingPartnerId;
   String _selectedStatus = 'Semua';
   String _selectedCity = 'Semua';
   String _selectedSort = 'Default';
 
   bool _isMapExpanded = false;
   double _currentZoom = 13.5;
+  int? _selectedPartnerId;
 
   @override
   void initState() {
@@ -50,6 +53,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     _mapController.dispose();
     _scrollController.dispose();
@@ -63,8 +67,17 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     });
 
     try {
-      final position = await _locationService.getCurrentLocation();
-      final partners = await _apiService.fetchPartners();
+      final positionFuture = _locationService.getCurrentLocation().catchError(
+        (_) => null,
+      );
+      final partnersFuture = _apiService.fetchPartners();
+      final results = await Future.wait<Object?>([
+        positionFuture,
+        partnersFuture,
+      ]);
+
+      final position = results[0] as Position?;
+      final partners = results[1] as List<Partner>;
 
       final cities = [
         'Semua',
@@ -99,6 +112,80 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
         _errorMessage = e.toString();
         _isLoading = false;
       });
+    }
+  }
+
+  void _onSearchChanged(String _) {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(
+      const Duration(milliseconds: 300),
+      _applyFilterAndSort,
+    );
+  }
+
+  Future<void> _startVisit(Partner partner) async {
+    if (_claimingPartnerId != null || partner.isOccupied) return;
+
+    setState(() => _claimingPartnerId = partner.partnerId);
+
+    try {
+      final claimResult = await StoreVisitService().claimStore(
+        odooPartnerId: partner.partnerId,
+      );
+
+      if (!mounted) return;
+
+      if (claimResult['success'] != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(claimResult['message'] ?? 'Gagal klaim toko'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      final visitId = claimResult['visit_id']?.toString();
+      if (visitId == null || visitId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('ID Kunjungan tidak ditemukan.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
+      widget.onVisitOutlet?.call(partner.partnerName, visitId);
+
+      final formResult = await Navigator.push<VisitFormResult>(
+        context,
+        MaterialPageRoute(
+          builder: (_) =>
+              VisitFormPage(outletName: partner.partnerName, visitId: visitId),
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (formResult != null) {
+        widget.onVisitEnded?.call();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              formResult == VisitFormResult.completed
+                  ? 'Kunjungan selesai.'
+                  : 'Kunjungan dibatalkan.',
+            ),
+          ),
+        );
+      }
+
+      await _loadPartnersData();
+    } finally {
+      if (mounted) {
+        setState(() => _claimingPartnerId = null);
+      }
     }
   }
 
@@ -177,6 +264,63 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     }
   }
 
+  void _selectStore(Partner partner) {
+    setState(() => _selectedPartnerId = partner.partnerId);
+    _mapController.move(
+      latlong.LatLng(partner.latitude, partner.longitude),
+      15.0,
+    );
+    _scrollToStore(partner.partnerId);
+  }
+
+  void _moveMapToCurrentLocation() {
+    final position = _currentPosition;
+    if (position == null) return;
+
+    _mapController.move(
+      latlong.LatLng(position.latitude, position.longitude),
+      _currentZoom,
+    );
+  }
+
+  void _moveMapToCity(String city) {
+    if (city == 'Semua') {
+      _moveMapToCurrentLocation();
+      return;
+    }
+
+    final cityPartners = _partners
+        .where(
+          (partner) =>
+              partner.kota.toLowerCase() == city.toLowerCase() &&
+              partner.latitude != 0.0 &&
+              partner.longitude != 0.0,
+        )
+        .toList();
+    if (cityPartners.isEmpty) return;
+
+    if (cityPartners.length == 1) {
+      final partner = cityPartners.first;
+      _mapController.move(
+        latlong.LatLng(partner.latitude, partner.longitude),
+        14.0,
+      );
+      return;
+    }
+
+    final bounds = LatLngBounds.fromPoints(
+      cityPartners
+          .map((partner) => latlong.LatLng(partner.latitude, partner.longitude))
+          .toList(),
+    );
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.fromLTRB(48, 48, 48, 110),
+      ),
+    );
+  }
+
   void _showSelectionBottomSheet({
     required BuildContext context,
     required String title,
@@ -236,20 +380,24 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FF),
       appBar: _buildAppBar(),
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          SliverToBoxAdapter(child: _buildMapHeader()),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [_buildFilterRow(), const SizedBox(height: 16)],
+      body: RefreshIndicator(
+        onRefresh: _loadPartnersData,
+        child: CustomScrollView(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverToBoxAdapter(child: _buildMapHeader()),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  children: [_buildFilterRow(), const SizedBox(height: 16)],
+                ),
               ),
             ),
-          ),
-          _buildSliverContentArea(),
-        ],
+            _buildSliverContentArea(),
+          ],
+        ),
       ),
     );
   }
@@ -260,14 +408,15 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       elevation: 0,
       centerTitle: true,
       leading: IconButton(
-        icon: const Icon(Icons.menu, color: Color(0xFF031636)),
-        onPressed: () {},
+        icon: const Icon(Icons.refresh, color: Color(0xFF031636)),
+        tooltip: 'Muat ulang data toko',
+        onPressed: _isLoading ? null : _loadPartnersData,
       ),
       title: _isSearching
           ? TextField(
               controller: _searchController,
               autofocus: true,
-              onChanged: (_) => _applyFilterAndSort(),
+              onChanged: _onSearchChanged,
               decoration: const InputDecoration(
                 hintText: 'Cari toko atau alamat...',
                 border: InputBorder.none,
@@ -291,13 +440,14 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             color: const Color(0xFF031636),
           ),
           onPressed: () {
-            setState(() {
-              _isSearching = !_isSearching;
-              if (!_isSearching) {
-                _searchController.clear();
-                _applyFilterAndSort();
-              }
-            });
+            final shouldStartSearching = !_isSearching;
+            setState(() => _isSearching = shouldStartSearching);
+
+            if (!shouldStartSearching) {
+              _searchDebounce?.cancel();
+              _searchController.clear();
+              _applyFilterAndSort();
+            }
           },
         ),
       ],
@@ -329,10 +479,8 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                   : const latlong.LatLng(-6.2088, 106.8456),
               initialZoom: _currentZoom,
               onPositionChanged: (position, hasGesture) {
-                if (hasGesture &&
-                    position.zoom != null &&
-                    position.zoom != _currentZoom) {
-                  setState(() => _currentZoom = position.zoom!);
+                if (hasGesture && position.zoom != _currentZoom) {
+                  setState(() => _currentZoom = position.zoom);
                 }
               },
             ),
@@ -354,7 +502,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                       height: 44,
                       child: Container(
                         decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.2),
+                          color: Colors.blue.withValues(alpha: 0.2),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.blue, width: 2),
                         ),
@@ -380,20 +528,17 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                       height: 65,
                       child: GestureDetector(
                         onTap: () {
-                          _mapController.move(
-                            latlong.LatLng(partner.latitude, partner.longitude),
-                            15.0,
-                          );
-                          _scrollToStore(partner.partnerId);
+                          _selectStore(partner);
                         },
                         child: CustomStoreMarker(
                           partner: partner,
                           statusColor: statusTheme.borderColor,
                           showLabel: _currentZoom >= 14.0,
+                          isSelected: _selectedPartnerId == partner.partnerId,
                         ),
                       ),
                     );
-                  }).toList(),
+                  }),
                 ],
               ),
             ],
@@ -401,19 +546,24 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
           Positioned(
             top: 16,
             right: 16,
-            child: CircleAvatar(
-              backgroundColor: Colors.white.withOpacity(0.9),
-              radius: 22,
-              child: IconButton(
-                icon: Icon(
-                  _isMapExpanded ? Icons.close : Icons.open_in_full,
-                  color: const Color(0xFF031636),
-                  size: 22,
+            child: Column(
+              children: [
+                _mapActionButton(
+                  icon: Icons.my_location,
+                  tooltip: 'Kembali ke titik saya',
+                  onPressed: _currentPosition == null
+                      ? null
+                      : _moveMapToCurrentLocation,
                 ),
-                onPressed: () {
-                  setState(() => _isMapExpanded = !_isMapExpanded);
-                },
-              ),
+                const SizedBox(height: 8),
+                _mapActionButton(
+                  icon: _isMapExpanded ? Icons.close : Icons.open_in_full,
+                  tooltip: _isMapExpanded ? 'Perkecil peta' : 'Perbesar peta',
+                  onPressed: () {
+                    setState(() => _isMapExpanded = !_isMapExpanded);
+                  },
+                ),
+              ],
             ),
           ),
           Positioned.fill(
@@ -425,8 +575,8 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                     end: Alignment.topCenter,
                     colors: [
                       const Color(0xFFF8F9FF),
-                      const Color(0xFFF8F9FF).withOpacity(0),
-                      const Color(0xFFCBDBF5).withOpacity(0.15),
+                      const Color(0xFFF8F9FF).withValues(alpha: 0),
+                      const Color(0xFFCBDBF5).withValues(alpha: 0.15),
                     ],
                     stops: const [0.0, 0.6, 1.0],
                   ),
@@ -471,6 +621,22 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     );
   }
 
+  Widget _mapActionButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback? onPressed,
+  }) {
+    return CircleAvatar(
+      backgroundColor: Colors.white.withValues(alpha: 0.9),
+      radius: 22,
+      child: IconButton(
+        icon: Icon(icon, color: const Color(0xFF031636), size: 22),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      ),
+    );
+  }
+
   Widget _buildFilterRow() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -492,7 +658,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
               ],
               selectedValue: _selectedStatus,
               onSelected: (val) {
-                setState(() => _selectedStatus = val);
+                _selectedStatus = val;
                 _applyFilterAndSort();
               },
             ),
@@ -507,8 +673,9 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
               options: _availableCities,
               selectedValue: _selectedCity,
               onSelected: (val) {
-                setState(() => _selectedCity = val);
+                _selectedCity = val;
                 _applyFilterAndSort();
+                _moveMapToCity(val);
               },
             ),
           ),
@@ -522,7 +689,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
               options: ['Default', 'Terdekat', 'Kunjungan Terlama', 'Nama A-Z'],
               selectedValue: _selectedSort,
               onSelected: (val) {
-                setState(() => _selectedSort = val);
+                _selectedSort = val;
                 _applyFilterAndSort();
               },
             ),
@@ -615,51 +782,10 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                 partner.latitude,
                 partner.longitude,
               ),
-              onVisit: () async {
-                final result = await StoreVisitService().claimStore(
-                  odooPartnerId: partner.partnerId,
-                );
-
-                if (!context.mounted) return;
-
-                if (result['success'] == true) {
-                  final visitId = result['visit_id']?.toString();
-                  if (visitId == null || visitId.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('ID Kunjungan tidak ditemukan.'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                    return;
-                  }
-
-                  widget.onVisitOutlet?.call(partner.partnerName, visitId);
-
-                  final saved = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => VisitFormPage(
-                        outletName: partner.partnerName,
-                        visitId: visitId,
-                      ),
-                    ),
-                  );
-
-                  if (saved == true && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Kunjungan selesai.')),
-                    );
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(result['message'] ?? 'Gagal klaim toko'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              },
+              isClaiming: _claimingPartnerId == partner.partnerId,
+              onVisit: _claimingPartnerId == null
+                  ? () => _startVisit(partner)
+                  : null,
             ),
           );
         }, childCount: _filteredPartners.length),
@@ -672,107 +798,162 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 // WIDGET MARKER PETA (DENGAN LOGIKA PENANDA KUNJUNGAN)
 // ============================================================================
 
-class CustomStoreMarker extends StatelessWidget {
+class CustomStoreMarker extends StatefulWidget {
   final Partner partner;
   final Color statusColor;
   final bool showLabel;
+  final bool isSelected;
 
   const CustomStoreMarker({
-    Key? key,
+    super.key,
     required this.partner,
     required this.statusColor,
     required this.showLabel,
-  }) : super(key: key);
+    required this.isSelected,
+  });
+
+  @override
+  State<CustomStoreMarker> createState() => _CustomStoreMarkerState();
+}
+
+class _CustomStoreMarkerState extends State<CustomStoreMarker>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 850),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
 
   bool get _isCompleted =>
-      partner.visitStatus == 'COMPLETED' || partner.visitStatus == 'SELESAI';
+      widget.partner.visitStatus == 'COMPLETED' ||
+      widget.partner.visitStatus == 'SELESAI';
 
   @override
   Widget build(BuildContext context) {
-    return Opacity(
-      opacity: partner.isOccupied ? 0.75 : 1.0,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (showLabel)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: partner.isOccupied
-                      ? (_isCompleted
-                            ? const Color(0xFF006C49)
-                            : const Color(0xFFD93025))
-                      : statusColor.withOpacity(0.5),
-                  width: 0.8,
-                ),
-              ),
-              child: Text(
-                partner.partnerName,
-                style: const TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF031636),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                maxLines: 1,
-                textAlign: TextAlign.center,
-              ),
-            ),
-          const SizedBox(height: 2),
-          Stack(
-            clipBehavior: Clip.none,
+    final partner = widget.partner;
+    final statusColor = widget.statusColor;
+
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        final pulse = Curves.easeInOut.transform(_pulseController.value);
+        return Opacity(
+          opacity: partner.isOccupied ? 0.75 : 1.0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                height: 36,
-                width: 36,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  border: partner.isOccupied
-                      ? Border.all(
+              if (widget.showLabel)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: partner.isOccupied
+                          ? (_isCompleted
+                                ? const Color(0xFF006C49)
+                                : const Color(0xFFD93025))
+                          : statusColor.withValues(alpha: 0.5),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    partner.partnerName,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF031636),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              const SizedBox(height: 2),
+              Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  if (widget.isSelected)
+                    Transform.scale(
+                      scale: 1.15 + pulse * 0.25,
+                      child: Container(
+                        height: 42,
+                        width: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(
+                              0xFF0265DC,
+                            ).withValues(alpha: 0.75 - pulse * 0.35),
+                            width: 3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  Container(
+                    height: 36,
+                    width: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      border: partner.isOccupied
+                          ? Border.all(
+                              color: _isCompleted
+                                  ? const Color(0xFF006C49)
+                                  : const Color(0xFFD93025),
+                              width: 2,
+                            )
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.location_on,
+                      color: widget.isSelected
+                          ? const Color(0xFF0265DC)
+                          : statusColor,
+                      size: 24,
+                    ),
+                  ),
+                  // Badge Penanda di Marker jika toko Sedang / Sudah Dikunjungi
+                  if (partner.isOccupied)
+                    Positioned(
+                      top: -2,
+                      right: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
                           color: _isCompleted
                               ? const Color(0xFF006C49)
                               : const Color(0xFFD93025),
-                          width: 2,
-                        )
-                      : null,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          _isCompleted ? Icons.check : Icons.person,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                child: Icon(Icons.location_on, color: statusColor, size: 24),
+                ],
               ),
-              // Badge Penanda di Marker jika toko Sedang / Sudah Dikunjungi
-              if (partner.isOccupied)
-                Positioned(
-                  top: -2,
-                  right: -2,
-                  child: Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: _isCompleted
-                          ? const Color(0xFF006C49)
-                          : const Color(0xFFD93025),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      _isCompleted ? Icons.check : Icons.person,
-                      size: 10,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
             ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -846,18 +1027,21 @@ class PartnerCard extends StatelessWidget {
   final Partner partner;
   final String distanceText;
   final VoidCallback? onVisit;
+  final bool isClaiming;
 
   const PartnerCard({
-    Key? key,
+    super.key,
     required this.partner,
     required this.distanceText,
     this.onVisit,
-  }) : super(key: key);
+    this.isClaiming = false,
+  });
 
   bool get _isCompleted =>
       partner.visitStatus == 'COMPLETED' || partner.visitStatus == 'SELESAI';
 
   bool get _isOnVisit =>
+      partner.visitStatus == 'IN_VISIT' ||
       partner.visitStatus == 'ON_VISIT' ||
       partner.visitStatus == 'ON VISIT' ||
       partner.visitStatus == 'CLAIMED' ||
@@ -886,7 +1070,7 @@ class PartnerCard extends StatelessWidget {
 
     String buttonText = 'Kunjungi';
     if (_isCompleted) {
-      buttonText = 'Selesai';
+      buttonText = 'Tersedia Senin';
     } else if (partner.isOccupied) {
       buttonText = 'Sedang Dikunjungi';
     }
@@ -910,7 +1094,7 @@ class PartnerCard extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.02),
+              color: Colors.black.withValues(alpha: 0.02),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -971,7 +1155,7 @@ class PartnerCard extends StatelessWidget {
                             color: theme.chipBgColor,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(
-                              color: theme.chipTextColor.withOpacity(0.2),
+                              color: theme.chipTextColor.withValues(alpha: 0.2),
                             ),
                           ),
                           child: Row(
@@ -1081,7 +1265,7 @@ class PartnerCard extends StatelessWidget {
                               SizedBox(
                                 height: 40,
                                 child: ElevatedButton(
-                                  onPressed: partner.isOccupied
+                                  onPressed: partner.isOccupied || isClaiming
                                       ? null
                                       : onVisit,
                                   style: ElevatedButton.styleFrom(
@@ -1098,14 +1282,23 @@ class PartnerCard extends StatelessWidget {
                                       horizontal: 16,
                                     ),
                                   ),
-                                  child: Text(
-                                    buttonText,
-                                    style: const TextStyle(
-                                      fontFamily: 'Inter',
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
+                                  child: isClaiming
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Color(0xFF031636),
+                                          ),
+                                        )
+                                      : Text(
+                                          buttonText,
+                                          style: const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
                                 ),
                               ),
                             ],
@@ -1118,7 +1311,7 @@ class PartnerCard extends StatelessWidget {
               ),
               if (_shouldFade) ...[
                 Positioned.fill(
-                  child: Container(color: Colors.white.withOpacity(0.35)),
+                  child: Container(color: Colors.white.withValues(alpha: 0.35)),
                 ),
                 Positioned(
                   left: 12,
@@ -1138,7 +1331,7 @@ class PartnerCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(8),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.18),
+                            color: Colors.black.withValues(alpha: 0.18),
                             blurRadius: 6,
                             offset: const Offset(0, 3),
                           ),
@@ -1158,7 +1351,7 @@ class PartnerCard extends StatelessWidget {
                           Flexible(
                             child: Text(
                               _isCompleted
-                                  ? 'Sudah dikunjungi oleh $nameDisplay'
+                                  ? 'Sudah dikunjungi minggu ini oleh $nameDisplay'
                                   : 'Sedang dikunjungi oleh $nameDisplay',
                               style: const TextStyle(
                                 fontFamily: 'Inter',

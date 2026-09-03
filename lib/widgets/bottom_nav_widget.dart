@@ -144,7 +144,7 @@ class BottomNavWidget extends StatelessWidget {
             onPressed: () async {
               if (outletName.isEmpty) return;
 
-              final isSuccess = await Navigator.push<bool>(
+              final result = await Navigator.push<VisitFormResult>(
                 context,
                 MaterialPageRoute(
                   builder: (context) => VisitFormPage(
@@ -154,8 +154,20 @@ class BottomNavWidget extends StatelessWidget {
                 ),
               );
 
-              if (isSuccess == true && onFinishVisit != null) {
+              if (result != null && onFinishVisit != null) {
                 onFinishVisit!();
+              }
+
+              if (result != null && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      result == VisitFormResult.completed
+                          ? 'Kunjungan selesai.'
+                          : 'Kunjungan dibatalkan.',
+                    ),
+                  ),
+                );
               }
             },
             child: const Text('Selesaikan Kunjungan'),

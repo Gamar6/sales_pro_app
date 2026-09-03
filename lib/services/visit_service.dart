@@ -53,10 +53,11 @@ class VisitService {
           (visitData['store'] is Map
               ? (visitData['store']['name'] ??
                     visitData['store']['outlet_name'])
+              : null) ??
+          (visitData['outlet'] is Map
+              ? (visitData['outlet']['name'] ??
+                    visitData['outlet']['outlet_name'])
               : null);
-      (visitData['outlet'] is Map
-          ? (visitData['outlet']['name'] ?? visitData['outlet']['outlet_name'])
-          : null);
 
       return {
         'visit_id': visitId.toString(),
@@ -99,7 +100,43 @@ class VisitService {
     final response = await http.Response.fromStream(streamedResponse);
 
     if (response.statusCode != 200 && response.statusCode != 201) {
-      throw Exception(response.body);
+      throw Exception(_extractErrorMessage(response));
+    }
+  }
+
+  String _extractErrorMessage(http.Response response) {
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is Map<String, dynamic>) {
+        final errors = decoded['errors'];
+        if (errors is Map && errors.isNotEmpty) {
+          final firstError = errors.values.first;
+          if (firstError is List && firstError.isNotEmpty) {
+            return firstError.first.toString();
+          }
+        }
+
+        final message = decoded['message'];
+        if (message != null && message.toString().isNotEmpty) {
+          return message.toString();
+        }
+      }
+    } catch (_) {
+      // Respons non-JSON akan memakai pesan umum di bawah.
+    }
+
+    return 'Gagal mengirim laporan (status ${response.statusCode}).';
+  }
+
+  Future<void> cancelVisit(String visitId) async {
+    final headers = await ApiConfig.getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('${ApiConfig.baseUrl}/store-visits/$visitId/cancel'),
+      headers: headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
     }
   }
 

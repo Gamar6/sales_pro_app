@@ -23,8 +23,8 @@ class LocationService {
       return null;
     }
 
-    return await Geolocator.getCurrentPosition(
-      desiredAccuracy: LocationAccuracy.high,
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
     );
   }
 
@@ -53,8 +53,9 @@ class LocationService {
     double? targetLat,
     double? targetLng,
   ) {
-    if (currentPosition == null || targetLat == null || targetLng == null)
+    if (currentPosition == null || targetLat == null || targetLng == null) {
       return '-';
+    }
 
     double distanceInMeters = Geolocator.distanceBetween(
       currentPosition.latitude,

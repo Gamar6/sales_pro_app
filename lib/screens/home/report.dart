@@ -1,9 +1,11 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/visit_model.dart';
 import '../../services/visit_service.dart';
+
+enum VisitFormResult { completed, cancelled }
 
 class VisitFormPage extends StatefulWidget {
   final String outletName;
@@ -102,9 +104,14 @@ class _VisitFormPageState extends State<VisitFormPage> {
   }
 
   Future<void> _submitForm() async {
-    // FIX: Gunakan _currentVisitId bukan widget.visitId
     if (_currentVisitId == null || _currentVisitId!.isEmpty) {
       _showMessage('Gagal menyimpan: ID Kunjungan tidak ditemukan!');
+      return;
+    }
+
+    final validationMessage = _validateForm();
+    if (validationMessage != null) {
+      _showMessage(validationMessage);
       return;
     }
 
@@ -114,10 +121,10 @@ class _VisitFormPageState extends State<VisitFormPage> {
       outletName: widget.outletName,
       visitId:
           _currentVisitId, // FIX: Gunakan variabel internal _currentVisitId
-      pic: _picController.text,
-      sisaStokPersen: _stokPersenController.text,
-      sisaStokPcs: _stokPcsController.text,
-      catatan: _catatanController.text,
+      pic: _picController.text.trim(),
+      sisaStokPersen: _stokPersenController.text.trim(),
+      sisaStokPcs: _stokPcsController.text.trim(),
+      catatan: _catatanController.text.trim(),
       aktivitas: _selectedAktivitas,
       photos: _selectedImages,
     );
@@ -127,10 +134,90 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
       if (mounted) {
         _showMessage('Data kunjungan berhasil disimpan!');
-        Navigator.pop(context, true);
+        Navigator.pop(context, VisitFormResult.completed);
       }
     } catch (e) {
-      if (mounted) _showMessage('Terjadi kesalahan: $e');
+      if (mounted) {
+        final message = e.toString().replaceFirst('Exception: ', '');
+        _showMessage('Gagal mengirim laporan: $message');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String? _validateForm() {
+    if (_picController.text.trim().isEmpty) {
+      return 'Nama PIC penanggung jawab wajib diisi.';
+    }
+    if (_selectedAktivitas.isEmpty) {
+      return 'Pilih minimal satu aktivitas kunjungan.';
+    }
+    if (_stokPersenController.text.trim().isEmpty &&
+        _stokPcsController.text.trim().isEmpty) {
+      return 'Isi sisa stok dalam persen atau pcs.';
+    }
+
+    final percentageText = _stokPersenController.text.trim();
+    if (percentageText.isNotEmpty) {
+      final percentage = int.tryParse(percentageText);
+      if (percentage == null || percentage < 0 || percentage > 100) {
+        return 'Sisa stok persen harus berupa angka 0 sampai 100.';
+      }
+    }
+
+    final piecesText = _stokPcsController.text.trim();
+    if (piecesText.isNotEmpty) {
+      final pieces = int.tryParse(piecesText);
+      if (pieces == null || pieces < 0) {
+        return 'Sisa stok pcs harus berupa angka 0 atau lebih.';
+      }
+    }
+
+    if (_selectedImages.isEmpty) {
+      return 'Lampirkan minimal satu foto dokumentasi.';
+    }
+
+    return null;
+  }
+
+  Future<void> _cancelVisit() async {
+    final visitId = _currentVisitId;
+    if (visitId == null || visitId.isEmpty || _isLoading) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Batalkan kunjungan?'),
+        content: const Text(
+          'Laporan yang belum dikirim tidak akan disimpan dan toko dapat dikunjungi kembali.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Kembali'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Batalkan Kunjungan'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    try {
+      await _visitService.cancelVisit(visitId);
+      if (mounted) {
+        Navigator.pop(context, VisitFormResult.cancelled);
+      }
+    } catch (e) {
+      if (mounted) {
+        final message = e.toString().replaceFirst('Exception: ', '');
+        _showMessage('Gagal membatalkan kunjungan: $message');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -183,7 +270,8 @@ class _VisitFormPageState extends State<VisitFormPage> {
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFF424752)),
-          onPressed: () => Navigator.pop(context),
+          tooltip: 'Kembali — kunjungan tetap aktif',
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Fiva Food',
@@ -193,6 +281,13 @@ class _VisitFormPageState extends State<VisitFormPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : _cancelVisit,
+            tooltip: 'Batalkan kunjungan',
+            icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A)),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
@@ -409,19 +504,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: kIsWeb
-                      ? Image.network(
-                          _selectedImages[index].path,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        )
-                      : Image.file(
-                          File(_selectedImages[index].path),
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          height: double.infinity,
-                        ),
+                  child: _SelectedImagePreview(image: _selectedImages[index]),
                 ),
                 Positioned(
                   top: 2,
@@ -526,6 +609,68 @@ class _VisitFormPageState extends State<VisitFormPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SelectedImagePreview extends StatefulWidget {
+  final XFile image;
+
+  const _SelectedImagePreview({required this.image});
+
+  @override
+  State<_SelectedImagePreview> createState() => _SelectedImagePreviewState();
+}
+
+class _SelectedImagePreviewState extends State<_SelectedImagePreview> {
+  late Future<Uint8List> _bytesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _bytesFuture = widget.image.readAsBytes();
+  }
+
+  @override
+  void didUpdateWidget(covariant _SelectedImagePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.image.path != widget.image.path) {
+      _bytesFuture = widget.image.readAsBytes();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Uint8List>(
+      future: _bytesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          return Image.memory(
+            snapshot.data!,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+          );
+        }
+
+        if (snapshot.hasError) {
+          return const ColoredBox(
+            color: Color(0xFFF1F3F5),
+            child: Center(child: Icon(Icons.broken_image_outlined)),
+          );
+        }
+
+        return const ColoredBox(
+          color: Color(0xFFF1F3F5),
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -18,8 +18,8 @@ class VisitRequestModel {
     required this.sisaStokPcs,
     required this.catatan,
     required this.aktivitas,
-    required List<dynamic> photos, // Menerima List<File> maupun List<XFile>
-  }) : photos = photos.map((e) => e is XFile ? e : XFile(e.path)).toList();
+    required this.photos,
+  });
 
   Map<String, String> toFieldsMap() {
     final Map<String, String> fields = {

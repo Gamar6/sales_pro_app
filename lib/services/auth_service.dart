@@ -24,7 +24,7 @@ class AuthService {
       }
 
       return loginResponse;
-    } catch (e) {
+    } catch (_) {
       return LoginResponse(
         success: false,
         message: 'Koneksi gagal. Pastikan server backend aktif.',
@@ -44,24 +44,50 @@ class AuthService {
   }
 
   Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await Future.wait([
+      prefs.remove('token'),
+      prefs.remove('user_id'),
+      prefs.remove('user_name'),
+    ]);
+  }
+
+  // Method baru untuk ganti password
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('token');
 
-      if (token != null) {
-        await http.post(
-          Uri.parse('${ApiConfig.baseUrl}/login'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': 'Bearer $token',
-          },
+      if (token == null) {
+        throw Exception('Sesi berakhir, silakan login kembali.');
+      }
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/change-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'current_password': currentPassword,
+          'new_password': newPassword,
+        }),
+      );
+
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          responseData['message'] ?? 'Gagal memperbarui kata sandi.',
         );
       }
     } catch (e) {
-    } finally {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('token');
+      if (e is Exception) rethrow;
+      throw Exception('Koneksi gagal. Pastikan server backend aktif.');
     }
   }
-}
+} 

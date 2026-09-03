@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
-
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -11,6 +11,42 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _pushNotifications = true;
   bool _locationServices = true;
+  Future<void> _handleLogout() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Keluar Aplikasi'),
+        content: const Text('Apakah Anda yakin ingin keluar?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Batal'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text(
+              'Ya, Keluar',
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    await AuthService().logout();
+    if (!mounted) return;
+
+    Navigator.pop(context);
+    Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 10,
                 offset: const Offset(0, 2),
               ),
@@ -57,7 +93,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
+                      color: Colors.black.withValues(alpha: 0.03),
                       blurRadius: 10,
                       offset: const Offset(0, 2),
                     ),
@@ -228,6 +264,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
               subtitle: 'Security credentials',
               iconBgColor: const Color(0xFFE5EEFF),
               iconColor: const Color(0xFF0B1C30),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ChangePasswordScreen(),
+                  ),
+                );
+              },
             ),
           ],
         ),
@@ -241,9 +285,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required String subtitle,
     required Color iconBgColor,
     required Color iconColor,
+    VoidCallback? onTap,
   }) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap, // Hubungkan dengan InkWell
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -252,7 +297,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.03),
+              color: Colors.black.withValues(alpha: 0.03),
               blurRadius: 5,
               offset: const Offset(0, 1),
             ),
@@ -323,7 +368,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.03),
+                color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 5,
                 offset: const Offset(0, 1),
               ),
@@ -345,7 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 value: _pushNotifications,
-                activeColor: Colors.white,
+                activeThumbColor: Colors.white,
                 activeTrackColor: const Color(0xFF031636),
                 onChanged: (bool value) {
                   setState(() {
@@ -368,7 +413,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 value: _locationServices,
-                activeColor: Colors.white,
+                activeThumbColor: Colors.white,
                 activeTrackColor: const Color(0xFF031636),
                 onChanged: (bool value) {
                   setState(() {
@@ -392,54 +437,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onPressed: () async {
-              // 1. Tampilkan konfirmasi dialog (Best Practice Industrial UX)
-              final bool? confirm = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Keluar Aplikasi'),
-                  content: const Text('Apakah Anda yakin ingin keluar?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text('Batal'),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text(
-                        'Ya, Keluar',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirm != true) return;
-
-              // 2. Tampilkan Loading Indicator
-              if (!context.mounted) return;
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
-              );
-
-              // 3. Eksekusi Service Logout
-              final authService = AuthService();
-              await authService.logout();
-
-              // 4. Tutup Dialog Loading & Redirect ke Halaman Login
-              if (!context.mounted) return;
-              Navigator.pop(context); // Tutup loading
-
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/login', // Pastikan route login sudah terdaftar
-                (route) => false, // Menghapus seluruh stack navigasi sebelumnya
-              );
-            },
+            onPressed: _handleLogout,
             icon: const Icon(Icons.logout),
             label: const Text(
               'Log Out',

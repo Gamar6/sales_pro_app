@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 
 import 'api_config.dart';
 
@@ -60,7 +60,7 @@ class StoreVisitService {
     required double stockPercentage,
     required int stockPcs,
     required String notes,
-    required List<File> photos,
+    required List<XFile> photos,
   }) async {
     try {
       final headers = await ApiConfig.getAuthHeaders();
@@ -85,8 +85,9 @@ class StoreVisitService {
 
       // Photos
       for (final photo in photos) {
+        final bytes = await photo.readAsBytes();
         request.files.add(
-          await http.MultipartFile.fromPath('photos[]', photo.path),
+          http.MultipartFile.fromBytes('photos[]', bytes, filename: photo.name),
         );
       }
 

@@ -49,8 +49,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
 
         // 2. Simpan Nama User / Sales ke SharedPreferences
-        if (response.user?.name != null) {
-          await prefs.setString('user_name', response.user!.name!);
+        final user = response.user;
+        if (user != null) {
+          await prefs.setString('user_name', user.name);
         }
 
         if (!mounted) return;
@@ -58,9 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
         // Pindah ke Halaman Home
         Navigator.pushReplacementNamed(context, '/home');
       } else {
-        _showErrorSnackBar(
-          response.message ?? 'Login gagal. Silakan coba lagi.',
-        );
+        _showErrorSnackBar(response.message);
       }
     } catch (e) {
       _showErrorSnackBar('Terjadi kesalahan koneksi. Silakan coba lagi.');
@@ -133,7 +132,10 @@ class _LoginScreenState extends State<LoginScreen> {
         const SizedBox(height: 8),
         Text(
           'Authentication Required',
-          style: TextStyle(fontSize: 14, color: Colors.white.withOpacity(0.8)),
+          style: TextStyle(
+            fontSize: 14,
+            color: Colors.white.withValues(alpha: 0.8),
+          ),
         ),
       ],
     );
@@ -235,21 +237,25 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text(
             'Lupa Password?',
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               decoration: TextDecoration.underline,
-              decorationColor: Colors.white.withOpacity(0.5),
+              decorationColor: Colors.white.withValues(alpha: 0.5),
             ),
           ),
         ),
         const SizedBox(height: 8),
-        Container(width: 48, height: 1, color: Colors.white.withOpacity(0.2)),
+        Container(
+          width: 48,
+          height: 1,
+          color: Colors.white.withValues(alpha: 0.2),
+        ),
         const SizedBox(height: 8),
         TextButton.icon(
           onPressed: () {},
           icon: const Icon(Icons.support_agent, size: 16, color: Colors.white),
           label: Text(
             'Hubungi Admin',
-            style: TextStyle(color: Colors.white.withOpacity(0.8)),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8)),
           ),
         ),
       ],
@@ -267,14 +273,14 @@ class _LoginScreenState extends State<LoginScreen> {
       prefixIcon: Icon(prefixIcon, color: const Color(0xFF75777F)),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: Colors.white.withOpacity(0.95),
+      fillColor: Colors.white.withValues(alpha: 0.95),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),

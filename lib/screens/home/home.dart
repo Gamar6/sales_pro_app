@@ -36,8 +36,6 @@ class _HomeScreenState extends State<HomeScreen> {
   List<StockProduct> _stockProducts = [];
   bool _isLoadingStock = false;
 
-
-
   final VisitService _visitService = VisitService();
   final ApiService _apiService = ApiService();
 
@@ -47,7 +45,16 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadSalesName();
     _loadActiveVisit();
     _loadDashboardData();
-    _loadStockProducts();
+  }
+
+  void _handleNavigationTap(int index) {
+    setState(() => _currentIndex = index);
+
+    if ((index == 2 || index == 3) &&
+        _stockProducts.isEmpty &&
+        !_isLoadingStock) {
+      _loadStockProducts();
+    }
   }
 
   Future<void> _loadSalesName() async {
@@ -97,25 +104,34 @@ class _HomeScreenState extends State<HomeScreen> {
       final historyList = await _visitService.getVisitHistory();
       if (!mounted) return;
 
-      final visits = historyList ?? [];
+      final visits = historyList;
       final now = DateTime.now();
 
-      // Hitung kunjungan khusus hari ini berdasarkan check_in_at
-      final todayCount = visits.where((v) {
-        final checkInStr = v['check_in_at']?.toString();
-        if (checkInStr == null) return false;
-        final checkInDate = DateTime.tryParse(checkInStr)?.toLocal();
-        if (checkInDate == null) return false;
+      final completedVisits = visits.where((v) {
+        return v is Map && v['status']?.toString() == 'COMPLETED';
+      }).toList();
 
-        return checkInDate.year == now.year &&
-            checkInDate.month == now.month &&
-            checkInDate.day == now.day;
-      }).length;
+      DateTime? visitDate(dynamic visit) {
+        if (visit is! Map) return null;
+        final checkInStr = visit['check_in_at']?.toString();
+        if (checkInStr == null) return null;
+        return DateTime.tryParse(checkInStr)?.toLocal();
+      }
+
+      final monthlyVisits = completedVisits.where((visit) {
+        final date = visitDate(visit);
+        return date != null && date.year == now.year && date.month == now.month;
+      }).toList();
+
+      final todayVisits = monthlyVisits.where((visit) {
+        final date = visitDate(visit);
+        return date != null && date.day == now.day;
+      }).toList();
 
       setState(() {
-        _recentVisits = visits;
-        _monthlyTrips = visits.length;
-        _visitedToday = todayCount;
+        _recentVisits = todayVisits.take(5).toList();
+        _monthlyTrips = monthlyVisits.length;
+        _visitedToday = todayVisits.length;
         _isLoadingDashboard = false;
       });
     } catch (e) {
@@ -161,7 +177,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -170,7 +185,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: _getPagesBody(),
       bottomNavigationBar: BottomNavWidget(
         currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
+        onTap: _handleNavigationTap,
         activeOutletName: _activeOutletName,
         activeVisitId: _activeVisitId,
         onFinishVisit: () {
@@ -188,9 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
     switch (_currentIndex) {
       case 0:
         return Column(
-          children: [
-            Expanded(child: _buildDashboardContent(context)),
-          ],
+          children: [Expanded(child: _buildDashboardContent(context))],
         );
       case 1:
         return StoreReviewPage(
@@ -199,6 +212,13 @@ class _HomeScreenState extends State<HomeScreen> {
               _activeOutletName = selectedOutletName;
               _activeVisitId = visitId;
             });
+          },
+          onVisitEnded: () {
+            setState(() {
+              _activeOutletName = null;
+              _activeVisitId = null;
+            });
+            _loadDashboardData();
           },
         );
       case 2:
@@ -490,7 +510,9 @@ class _PerformanceCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final int diff = visitedToday - targetToday;
-    final String achievementText = diff >= 0 ? ' (Tercapai)' : ' (Belum tercapai)';
+    final String achievementText = diff >= 0
+        ? ' (Tercapai)'
+        : ' (Belum tercapai)';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -562,13 +584,13 @@ class _PerformanceCard extends StatelessWidget {
               value: targetToday > 0
                   ? (visitedToday / targetToday).clamp(0.0, 1.0)
                   : 0.0,
-              backgroundColor: const Color(0xFF003F87).withOpacity(0.2),
+              backgroundColor: const Color(0xFF003F87).withValues(alpha: 0.2),
               valueColor: const AlwaysStoppedAnimation<Color>(
                 Color(0xFFFABD00),
               ),
               minHeight: 8,
             ),
-          ),        
+          ),
           const SizedBox(height: 12),
           _MonthlyTripTile(monthlyTrips: monthlyTrips),
         ],

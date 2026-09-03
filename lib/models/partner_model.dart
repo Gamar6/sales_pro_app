@@ -45,7 +45,15 @@ class Partner {
     return 0.0;
   }
 
-  bool get isOccupied => visitStatus != 'IDLE';
+  bool get isOccupied => const {
+    'IN_VISIT',
+    'ON_VISIT',
+    'ON VISIT',
+    'CLAIMED',
+    'IN_PROGRESS',
+    'COMPLETED',
+    'SELESAI',
+  }.contains(visitStatus);
 
   factory Partner.fromJson(Map<String, dynamic> json) {
     String statusRaw = '';
