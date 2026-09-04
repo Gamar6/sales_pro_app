@@ -22,20 +22,20 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
   static const Color brandTextVariant = Color(0xFF44474E);
   static const Color brandOutline = Color(0xFFC5C6CF);
 
-  // Untuk sementara semua produk menggunakan 30 pcs/karton.
-  static const int _pcsPerCarton = 30;
-
   StockProduct? _selectedProduct;
 
   final TextEditingController _quantityController = TextEditingController(
-    text: '12',
+    text: '0',
   );
 
   final TextEditingController _productSearchController =
       TextEditingController();
 
-  double _fractionalCarton = 0.4;
+  double _fractionalPackage = 0;
   double _totalPrice = 0;
+
+  int _packsPerPackage = 1;
+  String _packageUnit = 'Karton';
 
   final NumberFormat _currencyFormat = NumberFormat('#,##0', 'id_ID');
 
@@ -61,6 +61,58 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     _calculateSimulation();
   }
 
+  // ============================================================
+  // MENENTUKAN PACKAGING BERDASARKAN BERAT PRODUK
+  // ============================================================
+
+  void _updatePackaging() {
+    final product = _selectedProduct;
+
+    if (product == null) {
+      _packsPerPackage = 1;
+      _packageUnit = 'Karton';
+      return;
+    }
+
+    // Weight dari Odoo menggunakan KG.
+    final double weightKg = product.weight;
+
+    // 150 gram
+    if ((weightKg - 0.115).abs() < 0.001) {
+      _packsPerPackage = 30;
+      _packageUnit = 'Karton';
+    }
+    // 250 gram
+    else if ((weightKg - 0.25).abs() < 0.001) {
+      _packsPerPackage = 30;
+      _packageUnit = 'Karton';
+    }
+    // 500 gram
+    else if ((weightKg - 0.5).abs() < 0.001) {
+      _packsPerPackage = 15;
+      _packageUnit = 'Karton';
+    }
+    // 1000 gram / 1 kg
+    else if ((weightKg - 1.0).abs() < 0.001) {
+      _packsPerPackage = 10;
+      _packageUnit = 'Bal';
+    }
+    // 400 gram
+    else if((weightKg - 0.4).abs() < 0.001) {
+      _packsPerPackage = 20;
+      _packageUnit = 'Karton';
+    }
+    // Jika berat belum dikenali
+    else {
+      _packsPerPackage = 1;
+      _packageUnit = 'Karton';
+    }
+  }
+
+  // ============================================================
+  // SEARCH PRODUK
+  // ============================================================
+
   void _onProductSearchChanged() {
     final query = _productSearchController.text.trim().toLowerCase();
 
@@ -77,6 +129,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     });
   }
 
+  // ============================================================
+  // PILIH PRODUK
+  // ============================================================
+
   void _selectProduct(StockProduct product) {
     setState(() {
       _selectedProduct = product;
@@ -87,18 +143,43 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     _calculateSimulation();
   }
 
+  // ============================================================
+  // HITUNG SIMULASI
+  // ============================================================
+
   void _calculateSimulation() {
     final int qty = int.tryParse(_quantityController.text) ?? 0;
     final double price = _selectedProduct?.price ?? 0;
 
+    _updatePackaging();
+
     setState(() {
-      _fractionalCarton = qty > 0 ? qty / _pcsPerCarton : 0;
+      _fractionalPackage = qty > 0 ? qty / _packsPerPackage : 0;
+
       _totalPrice = qty * price;
     });
   }
 
+  // ============================================================
+  // FORMAT RUPIAH
+  // ============================================================
+
   String _formatRupiah(double value) {
     return _currencyFormat.format(value);
+  }
+
+  // ============================================================
+  // FORMAT BERAT
+  // ============================================================
+
+  String _formatWeight(double weightKg) {
+    final grams = weightKg * 1000;
+
+    if (grams == grams.roundToDouble()) {
+      return '${grams.toInt()} g';
+    }
+
+    return '${grams.toStringAsFixed(0)} g';
   }
 
   @override
@@ -107,6 +188,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     _productSearchController.dispose();
     super.dispose();
   }
+
+  // ============================================================
+  // BUILD
+  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -162,10 +247,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                   const SizedBox(height: 4),
                   const Text(
                     'Hitung konversi karton dan simulasi total harga untuk pesanan toko.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: brandTextVariant,
-                    ),
+                    style: TextStyle(fontSize: 14, color: brandTextVariant),
                   ),
                   const SizedBox(height: 16),
 
@@ -175,15 +257,9 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                         return Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              flex: 7,
-                              child: _buildFormSection(),
-                            ),
+                            Expanded(flex: 7, child: _buildFormSection()),
                             const SizedBox(width: 16),
-                            Expanded(
-                              flex: 5,
-                              child: _buildResultSection(),
-                            ),
+                            Expanded(flex: 5, child: _buildResultSection()),
                           ],
                         );
                       }
@@ -205,6 +281,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ),
     );
   }
+
+  // ============================================================
+  // FORM SECTION
+  // ============================================================
 
   Widget _buildFormSection() {
     final product = _selectedProduct;
@@ -248,9 +328,9 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
           const SizedBox(height: 6),
 
-          // =========================
+          // ======================================================
           // SEARCH PRODUK
-          // =========================
+          // ======================================================
           TextField(
             controller: _productSearchController,
             onTap: () {
@@ -260,10 +340,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
             },
             decoration: InputDecoration(
               hintText: 'Cari nama produk...',
-              prefixIcon: const Icon(
-                Icons.search,
-                color: brandPrimary,
-              ),
+              prefixIcon: const Icon(Icons.search, color: brandPrimary),
               suffixIcon: _productSearchController.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
@@ -287,40 +364,29 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
               ),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: brandOutline,
-                ),
+                borderSide: const BorderSide(color: brandOutline),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: brandOutline,
-                ),
+                borderSide: const BorderSide(color: brandOutline),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(
-                  color: brandPrimary,
-                  width: 1.5,
-                ),
+                borderSide: const BorderSide(color: brandPrimary, width: 1.5),
               ),
             ),
           ),
 
-          // =========================
+          // ======================================================
           // HASIL SEARCH
-          // =========================
+          // ======================================================
           if (_showProductResults)
             Container(
               margin: const EdgeInsets.only(top: 4),
-              constraints: const BoxConstraints(
-                maxHeight: 250,
-              ),
+              constraints: const BoxConstraints(maxHeight: 250),
               decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border.all(
-                  color: brandOutline,
-                ),
+                border: Border.all(color: brandOutline),
                 borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
@@ -335,10 +401,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                       padding: EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.search_off,
-                            color: brandTextVariant,
-                          ),
+                          Icon(Icons.search_off, color: brandTextVariant),
                           SizedBox(width: 10),
                           Text(
                             'Produk tidak ditemukan',
@@ -364,13 +427,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                       itemBuilder: (context, index) {
                         final product = _filteredProducts[index];
 
-                        final isSelected =
-                            _selectedProduct == product;
+                        final isSelected = _selectedProduct == product;
 
                         return Material(
-                          color: isSelected
-                              ? brandSurface
-                              : Colors.white,
+                          color: isSelected ? brandSurface : Colors.white,
                           child: InkWell(
                             onTap: () {
                               _selectProduct(product);
@@ -387,8 +447,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                                     height: 38,
                                     decoration: BoxDecoration(
                                       color: brandSurface,
-                                      borderRadius:
-                                          BorderRadius.circular(6),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: const Icon(
                                       Icons.inventory_2_outlined,
@@ -406,17 +465,13 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                                         Text(
                                           product.title,
                                           maxLines: 2,
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                          overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
                                             fontSize: 14,
-                                            fontWeight:
-                                                FontWeight.w600,
+                                            fontWeight: FontWeight.w600,
                                             color: isSelected
                                                 ? brandPrimary
-                                                : const Color(
-                                                    0xFF0B1C30,
-                                                  ),
+                                                : const Color(0xFF0B1C30),
                                           ),
                                         ),
                                         const SizedBox(height: 3),
@@ -424,8 +479,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                                           'Rp ${_formatRupiah(product.price)} / pack',
                                           style: const TextStyle(
                                             fontSize: 12,
-                                            color:
-                                                brandTextVariant,
+                                            color: brandTextVariant,
                                           ),
                                         ),
                                       ],
@@ -449,20 +503,22 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
           const SizedBox(height: 16),
 
+          // ======================================================
+          // QUANTITY + PACKAGING
+          // ======================================================
           Row(
             children: [
-              Expanded(
-                child: _buildQuantityField(),
-              ),
+              Expanded(child: _buildQuantityField()),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildCartonField(),
-              ),
+              Expanded(child: _buildPackageField()),
             ],
           ),
 
           const SizedBox(height: 16),
 
+          // ======================================================
+          // HARGA
+          // ======================================================
           _buildPriceField(),
 
           const SizedBox(height: 24),
@@ -479,16 +535,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                 ),
               ),
               onPressed: _calculateSimulation,
-              icon: const Icon(
-                Icons.calculate,
-                size: 20,
-              ),
+              icon: const Icon(Icons.calculate, size: 20),
               label: const Text(
                 'Hitung Simulasi',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -496,6 +546,10 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ),
     );
   }
+
+  // ============================================================
+  // QUANTITY FIELD
+  // ============================================================
 
   Widget _buildQuantityField() {
     return Column(
@@ -522,13 +576,17 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     );
   }
 
-  Widget _buildCartonField() {
+  // ============================================================
+  // PACKAGE FIELD
+  // ============================================================
+
+  Widget _buildPackageField() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'ISI PER KARTON',
-          style: TextStyle(
+        Text(
+          'ISI PER $_packageUnit'.toUpperCase(),
+          style: const TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.bold,
             color: brandTextVariant,
@@ -539,17 +597,16 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
         TextField(
           readOnly: true,
-          controller: TextEditingController(
-            text: _pcsPerCarton.toString(),
-          ),
-          decoration: _inputDecoration(
-            suffixText: 'packs',
-            filled: true,
-          ),
+          controller: TextEditingController(text: _packsPerPackage.toString()),
+          decoration: _inputDecoration(suffixText: 'packs', filled: true),
         ),
       ],
     );
   }
+
+  // ============================================================
+  // PRICE FIELD
+  // ============================================================
 
   Widget _buildPriceField() {
     final price = _selectedProduct?.price ?? 0;
@@ -570,48 +627,44 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
         TextField(
           readOnly: true,
-          controller: TextEditingController(
-            text: _formatRupiah(price),
-          ),
-          decoration: _inputDecoration(
-            filled: true,
-          ),
+          controller: TextEditingController(text: _formatRupiah(price)),
+          decoration: _inputDecoration(filled: true),
         ),
       ],
     );
   }
 
-  InputDecoration _inputDecoration({
-    String? suffixText,
-    bool filled = false,
-  }) {
+  // ============================================================
+  // INPUT DECORATION
+  // ============================================================
+
+  InputDecoration _inputDecoration({String? suffixText, bool filled = false}) {
     return InputDecoration(
       isDense: true,
       suffixText: suffixText,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 16,
-        vertical: 14,
-      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(
-          color: brandOutline,
-        ),
+        borderSide: const BorderSide(color: brandOutline),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(
-          color: brandOutline,
-        ),
+        borderSide: const BorderSide(color: brandOutline),
       ),
       filled: filled,
       fillColor: brandSurface,
     );
   }
 
+  // ============================================================
+  // RESULT SECTION
+  // ============================================================
+
   Widget _buildResultSection() {
     final product = _selectedProduct;
+
     final price = product?.price ?? 0;
+
     final qty = int.tryParse(_quantityController.text) ?? 0;
 
     return Column(
@@ -620,9 +673,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
-            border: Border.all(
-              color: const Color(0xFFFFB95F),
-            ),
+            border: Border.all(color: const Color(0xFFFFB95F)),
             borderRadius: BorderRadius.circular(8),
             boxShadow: [
               BoxShadow(
@@ -649,21 +700,17 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
               const Text(
                 'Konversi Fraksional',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: brandTextVariant,
-                ),
+                style: TextStyle(fontSize: 12, color: brandTextVariant),
               ),
 
               const SizedBox(height: 4),
 
               Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.baseline,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   Text(
-                    _fractionalCarton.toStringAsFixed(1),
+                    _fractionalPackage.toStringAsFixed(1),
                     style: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -671,9 +718,9 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
-                    'Karton',
-                    style: TextStyle(
+                  Text(
+                    _packageUnit,
+                    style: const TextStyle(
                       fontSize: 14,
                       color: brandTextVariant,
                     ),
@@ -684,20 +731,14 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
               const SizedBox(height: 6),
 
               Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: const Color(0xFFE5EEFF),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Rumus: $qty packs / $_pcsPerCarton packs',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: brandTextVariant,
-                  ),
+                  'Rumus: $qty packs / $_packsPerPackage packs',
+                  style: const TextStyle(fontSize: 11, color: brandTextVariant),
                 ),
               ),
 
@@ -706,27 +747,50 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                 child: Divider(height: 1),
               ),
 
+              // ==================================================
+              // BERAT PRODUK
+              // ==================================================
+              if (product != null) ...[
+                const Text(
+                  'Berat Produk',
+                  style: TextStyle(fontSize: 12, color: brandTextVariant),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  _formatWeight(product.weight),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0B1C30),
+                  ),
+                ),
+
+                const SizedBox(height: 16),
+
+                const Divider(height: 1),
+
+                const SizedBox(height: 16),
+              ],
+
+              // ==================================================
+              // TOTAL HARGA
+              // ==================================================
               const Text(
                 'Total Estimasi Harga',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: brandTextVariant,
-                ),
+                style: TextStyle(fontSize: 12, color: brandTextVariant),
               ),
 
               const SizedBox(height: 4),
 
               Row(
-                crossAxisAlignment:
-                    CrossAxisAlignment.baseline,
+                crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
                   const Text(
                     'Rp ',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
                   ),
                   Expanded(
                     child: Text(
@@ -746,10 +810,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
               Text(
                 '($qty packs × Rp ${_formatRupiah(price)})',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: brandTextVariant,
-                ),
+                style: const TextStyle(fontSize: 12, color: brandTextVariant),
               ),
 
               const SizedBox(height: 20),
@@ -761,10 +822,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
               if (product != null)
                 Text(
                   'Produk: ${product.title}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: brandTextVariant,
-                  ),
+                  style: const TextStyle(fontSize: 12, color: brandTextVariant),
                 ),
             ],
           ),
@@ -772,29 +830,24 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
         const SizedBox(height: 16),
 
+        // ========================================================
+        // CATATAN
+        // ========================================================
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFFEFF4FF),
-            border: Border.all(
-              color: brandOutline,
-            ),
+            border: Border.all(color: brandOutline),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Row(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                Icons.info_outline,
-                color: brandPrimary,
-                size: 22,
-              ),
+              Icon(Icons.info_outline, color: brandPrimary, size: 22),
               SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Catatan Pembelian Fraksional',
@@ -822,4 +875,4 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ],
     );
   }
-} 
+}

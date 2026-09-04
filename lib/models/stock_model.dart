@@ -1,37 +1,16 @@
-class StockResponse {
-  final String status;
-  final int totalSkus;
-  final int lowStockCount;
-  final List<StockProduct> data;
-
-  StockResponse({
-    required this.status,
-    required this.totalSkus,
-    required this.lowStockCount,
-    required this.data,
-  });
-
-  factory StockResponse.fromJson(Map<String, dynamic> json) {
-    return StockResponse(
-      status: json['status']?.toString() ?? 'error',
-      totalSkus: (json['total_skus'] as num?)?.toInt() ?? 0,
-      lowStockCount: (json['low_stock_count'] as num?)?.toInt() ?? 0,
-      data: (json['data'] as List? ?? [])
-          .map((item) => StockProduct.fromJson(item))
-          .toList(),
-    );
-  }
-}
-
 class StockProduct {
   final int id;
   final String title;
   final String subtitle;
   final String level;
-  final int rawQty;
+  final double rawQty;
   final String unit;
   final String status;
   final double price;
+  final double weight;
+  final String weightUnit;
+  final String packageUnit;
+  final int packsPerPackage;
   final String? imageUrl;
 
   StockProduct({
@@ -43,6 +22,10 @@ class StockProduct {
     required this.unit,
     required this.status,
     required this.price,
+    required this.weight,
+    required this.weightUnit,
+    required this.packageUnit,
+    required this.packsPerPackage,
     this.imageUrl,
   });
 
@@ -53,16 +36,28 @@ class StockProduct {
           : int.tryParse(json['id']?.toString() ?? '') ?? 0,
 
       title: json['title']?.toString() ?? '',
+
       subtitle: json['subtitle']?.toString() ?? '',
+
       level: json['level']?.toString() ?? '0',
 
-      rawQty: (json['raw_qty'] as num?)?.toInt() ?? 0,
+      rawQty: (json['raw_qty'] as num?)?.toDouble() ?? 0,
 
       unit: json['unit']?.toString() ?? 'pcs',
 
       status: json['status']?.toString() ?? 'In Stock',
 
       price: (json['price'] as num?)?.toDouble() ?? 0,
+
+      // Berat produk dari Laravel/Odoo
+      weight: (json['weight'] as num?)?.toDouble() ?? 0,
+
+      weightUnit: json['weight_unit']?.toString() ?? 'kg',
+
+      // Packaging
+      packageUnit: json['package_unit']?.toString() ?? 'karton',
+
+      packsPerPackage: (json['packs_per_package'] as num?)?.toInt() ?? 1,
 
       imageUrl: json['imageUrl']?.toString() ?? json['image_url']?.toString(),
     );
