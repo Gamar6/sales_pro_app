@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/auth_service.dart';
 import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
@@ -11,6 +14,167 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _pushNotifications = true;
   bool _locationServices = true;
+  bool _isUploading = false;
+
+  String _profileImageUrl =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuCJDXKmFNJE-LN9nd914mMkcouhS8RrXJgEm3c38hDZ51q0TyR3OMC9sAPVRkTqatZMb-Y6s0AtuMRAMBBeK4W02tT8PoHx8O6ePV9vLYNoM4ZFUzH-adcweUPKXoZXM4aJj3-VWAJZB4V5LoTm7EZb7ALTuwbBryDXaPHOHr3miJ09CzxKxpz-9PnRZr-UJbbPzI9j37KDvyMfV_qR-B3GcoCg_pVRwOCGJWNvngyNaRk67_61gd3L';
+
+  // Modal Pilihan Kamera / Galeri
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(20),
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library,
+                color: Color(0xFF031636),
+              ),
+              title: const Text('Pilih dari Galeri'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadPhoto(ImageSource.gallery);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera, color: Color(0xFF031636)),
+              title: const Text('Ambil dari Kamera'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickAndUploadPhoto(ImageSource.camera);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Preview Foto Profil Dalam Modal
+  void _showProfileImagePreview() {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(16),
+              ),
+              child: Image.network(
+                _profileImageUrl,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  height: 200,
+                  color: Colors.grey[200],
+                  child: const Icon(Icons.person, size: 80, color: Colors.grey),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(12.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  TextButton.icon(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      _showImagePickerOptions();
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Ubah Foto'),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Tutup'),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Proses Memilih & Unggah Foto ke Backend
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: source, imageQuality: 80);
+
+    if (pickedFile == null) return;
+
+    setState(() => _isUploading = true);
+
+    try {
+      final newUrl = await AuthService().uploadProfilePhoto(pickedFile);
+
+      if (mounted) {
+        setState(() {
+          // Trik timestamp agar NetworkImage langsung me-refresh tampilan gambar baru
+          _profileImageUrl =
+              '$newUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Foto profil berhasil diperbarui!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isUploading = false);
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Ambil foto dari cache lokal dulu agar tampilan cepat
+    final cachedPhoto = prefs.getString('profile_photo_url');
+    if (cachedPhoto != null && mounted) {
+      setState(() {
+        _profileImageUrl =
+            '$cachedPhoto?t=${DateTime.now().millisecondsSinceEpoch}';
+      });
+    }
+
+    // 2. Ambil data terbaru dari API Laravel
+    try {
+      final userData = await AuthService().getProfile();
+      final String? photoUrl = userData['profile_photo_url'];
+
+      if (photoUrl != null && photoUrl.isNotEmpty && mounted) {
+        // Update cache lokal
+        await prefs.setString('profile_photo_url', photoUrl);
+
+        setState(() {
+          _profileImageUrl =
+              '$photoUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+        });
+      }
+    } catch (e) {
+      print('Gagal load dari API, memakai cache lokal: $e');
+    }
+  }
+
+  // Konfirmasi & Proses Logout
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -55,7 +219,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF8F9FF),
         elevation: 0,
-        scrolledUnderElevation: 1,
         title: const Text(
           'Profile',
           style: TextStyle(
@@ -63,128 +226,125 @@ class _ProfileScreenState extends State<ProfileScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        centerTitle: false,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        child: Container(
-          constraints: const BoxConstraints(
-            maxWidth: 400,
-          ), // Opsional: batasi lebar maksimal agar bagus di tablet/HP besar
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 10,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Profile Snapshot Bento Card
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFFF8F9FF),
-                              width: 4,
-                            ),
-                            image: const DecorationImage(
-                              fit: BoxFit.cover,
-                              image: NetworkImage(
-                                'https://lh3.googleusercontent.com/aida-public/AB6AXuCJDXKmFNJE-LN9nd914mMkcouhS8RrXJgEm3c38hDZ51q0TyR3OMC9sAPVRkTqatZMb-Y6s0AtuMRAMBBeK4W02tT8PoHx8O6ePV9vLYNoM4ZFUzH-adcweUPKXoZXM4aJj3-VWAJZB4V5LoTm7EZb7ALTuwbBryDXaPHOHr3miJ09CzxKxpz-9PnRZr-UJbbPzI9j37KDvyMfV_qR-B3GcoCg_pVRwOCGJWNvngyNaRk67_61gd3L',
-                              ),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 4,
-                          right: 4,
-                          child: Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF006C49),
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: const Color(0xFFF8F9FF),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.check,
-                              color: Colors.white,
-                              size: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Sarah Jenkins',
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF031636),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Senior Field Representative',
-                      style: TextStyle(fontSize: 14, color: Color(0xFF44474E)),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.center,
-                      children: [
-                        _buildContactChip(Icons.call, '(555) 019-2834'),
-                        _buildContactChip(
-                          Icons.mail,
-                          's.jenkins@fieldauth.com',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-
-              // Account Settings Section
-              _buildAccountSettingsSection(),
-              const SizedBox(height: 24),
-
-              // Preferences Section
-              _buildPreferencesSection(),
-              const SizedBox(height: 32),
-            ],
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 400),
+            child: Column(
+              children: [
+                _buildProfileHeader(),
+                const SizedBox(height: 24),
+                _buildAccountSettingsSection(),
+                const SizedBox(height: 24),
+                _buildPreferencesSection(),
+                const SizedBox(height: 32),
+              ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildProfileHeader() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _isUploading ? null : _showProfileImagePreview,
+            child: Stack(
+              children: [
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: const Color(0xFFF8F9FF),
+                      width: 4,
+                    ),
+                    image: DecorationImage(
+                      fit: BoxFit.cover,
+                      image: NetworkImage(_profileImageUrl),
+                    ),
+                  ),
+                  child: _isUploading
+                      ? Container(
+                          decoration: const BoxDecoration(
+                            color: Colors.black38,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : null,
+                ),
+                Positioned(
+                  bottom: 4,
+                  right: 4,
+                  child: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF006C49),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: const Color(0xFFF8F9FF),
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'Sarah Jenkins',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF031636),
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Senior Field Representative',
+            style: TextStyle(fontSize: 14, color: Color(0xFF44474E)),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              _buildContactChip(Icons.call, '(555) 019-2834'),
+              _buildContactChip(Icons.mail, 's.jenkins@fieldauth.com'),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -288,7 +448,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     VoidCallback? onTap,
   }) {
     return InkWell(
-      onTap: onTap, // Hubungkan dengan InkWell
+      onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(12),
