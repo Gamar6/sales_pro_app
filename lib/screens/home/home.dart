@@ -12,6 +12,7 @@ import '../sim_harga/sim_harga.dart';
 import '../stock/stock_page.dart';
 import './detail_kunjungan_page.dart';
 import './history_visit.dart';
+import '../../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -25,6 +26,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   String? _activeOutletName;
   String? _activeVisitId;
+
+  String _profileImageUrl =
+      'https://lh3.googleusercontent.com/aida-public/AB6AXuBiDbZGtQo3RkzpMbtd30QF_Oj7cyw1o-wUuBFyHet9BZZ2hpGCKhvyJA5wCk3pLGjmV6CYWSEUQ1-9UFe4NCajq8bhuaoRuHSXaxNQJ7P26IdDXE37C-D24B6GwD_L7LVCPQ24ipR--SbpEDA7NOkqEg9bLUmfh13yABWrvoiTg4AbiboQeLL4M9poM0UM5d6Gyh7pLFoXCW-sVq9UgN0-096bkk0y8HmO6A6ajFbQOZPYlLxPmkXe';
 
   // State Data Dinamis
   bool _isLoadingDashboard = true;
@@ -43,6 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadSalesName();
+    _loadUserProfile();
     _loadActiveVisit();
     _loadDashboardData();
   }
@@ -66,6 +71,36 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _salesName = savedName;
     });
+  }
+
+  Future<void> _loadUserProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+
+    // 1. Ambil foto dari cache lokal dulu agar tampilan cepat
+    final cachedPhoto = prefs.getString('profile_photo_url');
+    if (cachedPhoto != null && mounted) {
+      setState(() {
+        _profileImageUrl =
+            '$cachedPhoto?t=${DateTime.now().millisecondsSinceEpoch}';
+      });
+    }
+
+    // 2. Ambil data terbaru dari API Laravel
+    try {
+      final userData = await AuthService().getProfile();
+      final String? photoUrl = userData['profile_photo_url'];
+
+      if (photoUrl != null && photoUrl.isNotEmpty && mounted) {
+        await prefs.setString('profile_photo_url', photoUrl);
+
+        setState(() {
+          _profileImageUrl =
+              '$photoUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+        });
+      }
+    } catch (e) {
+      debugPrint('Gagal load foto dari API, memakai cache lokal: $e');
+    }
   }
 
   Future<void> _loadActiveVisit() async {
@@ -256,10 +291,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(color: const Color(0xFFC2C6D4)),
-                        image: const DecorationImage(
-                          image: NetworkImage(
-                            'https://lh3.googleusercontent.com/aida-public/AB6AXuBiDbZGtQo3RkzpMbtd30QF_Oj7cyw1o-wUuBFyHet9BZZ2hpGCKhvyJA5wCk3pLGjmV6CYWSEUQ1-9UFe4NCajq8bhuaoRuHSXaxNQJ7P26IdDXE37C-D24B6GwD_L7LVCPQ24ipR--SbpEDA7NOkqEg9bLUmfh13yABWrvoiTg4AbiboQeLL4M9poM0UM5d6Gyh7pLFoXCW-sVq9UgN0-096bkk0y8HmO6A6ajFbQOZPYlLxPmkXe',
-                          ),
+                        image: DecorationImage(
+                          // Menggunakan variabel _profileImageUrl yang sudah di-load
+                          image: NetworkImage(_profileImageUrl),
                           fit: BoxFit.cover,
                         ),
                       ),
@@ -273,7 +307,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    fontStyle: FontStyle.italic,
                     color: Color(0xFF003F87),
                   ),
                 ),

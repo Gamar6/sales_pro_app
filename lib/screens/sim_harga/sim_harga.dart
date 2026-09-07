@@ -98,7 +98,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       _packageUnit = 'Bal';
     }
     // 400 gram
-    else if((weightKg - 0.4).abs() < 0.001) {
+    else if ((weightKg - 0.4).abs() < 0.001) {
       _packsPerPackage = 20;
       _packageUnit = 'Karton';
     }
@@ -209,24 +209,14 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
           backgroundColor: Colors.white,
           elevation: 1,
           centerTitle: true,
-          leading: IconButton(
-            icon: const Icon(Icons.menu, color: brandPrimary),
-            onPressed: () {},
-          ),
           title: const Text(
-            'Field Sales Pro',
+            'Simulasi Produk',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: brandPrimary,
             ),
           ),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.filter_list, color: brandPrimary),
-              onPressed: () {},
-            ),
-          ],
         ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),

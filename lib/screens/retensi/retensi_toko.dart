@@ -33,7 +33,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   bool _isLoading = true;
   String _errorMessage = '';
 
-  bool _isSearching = false;
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
   int? _claimingPartnerId;
@@ -407,50 +406,27 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       backgroundColor: const Color(0xFFF8F9FF),
       elevation: 0,
       centerTitle: true,
-      leading: IconButton(
-        icon: const Icon(Icons.refresh, color: Color(0xFF031636)),
-        tooltip: 'Muat ulang data toko',
-        onPressed: _isLoading ? null : _loadPartnersData,
-      ),
-      title: _isSearching
-          ? TextField(
-              controller: _searchController,
-              autofocus: true,
-              onChanged: _onSearchChanged,
-              decoration: const InputDecoration(
-                hintText: 'Cari toko atau alamat...',
-                border: InputBorder.none,
-                hintStyle: TextStyle(color: Color(0xFF75777F), fontSize: 16),
-              ),
-              style: const TextStyle(color: Color(0xFF031636), fontSize: 16),
-            )
-          : const Text(
-              'Retensi Toko',
-              style: TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                color: Color(0xFF031636),
-              ),
-            ),
-      actions: [
-        IconButton(
-          icon: Icon(
-            _isSearching ? Icons.close : Icons.search,
-            color: const Color(0xFF031636),
-          ),
-          onPressed: () {
-            final shouldStartSearching = !_isSearching;
-            setState(() => _isSearching = shouldStartSearching);
-
-            if (!shouldStartSearching) {
-              _searchDebounce?.cancel();
-              _searchController.clear();
-              _applyFilterAndSort();
-            }
-          },
+      title: TextField(
+        controller: _searchController,
+        onChanged: _onSearchChanged,
+        decoration: InputDecoration(
+          hintText: 'Cari toko atau alamat...',
+          border: InputBorder.none,
+          hintStyle: const TextStyle(color: Color(0xFF75777F), fontSize: 16),
+          suffixIcon: _searchController.text.isEmpty
+              ? const Icon(Icons.search, color: Color(0xFF031636))
+              : IconButton(
+                  icon: const Icon(Icons.close, color: Color(0xFF031636)),
+                  tooltip: 'Hapus pencarian',
+                  onPressed: () {
+                    _searchController.clear();
+                    _applyFilterAndSort();
+                  },
+                ),
         ),
-      ],
+        style: const TextStyle(color: Color(0xFF031636), fontSize: 16),
+      ),
+      actions: [const SizedBox(width: 8)],
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1.0),
         child: Container(color: const Color(0xFFC5C6CF), height: 1.0),
@@ -487,8 +463,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName:
-                    'com.example.sales_app', // Ganti dengan ID package aplikasi kamu (cth: android/app/build.gradle)
+                userAgentPackageName: 'com.example.sales_app',
               ),
               MarkerLayer(
                 markers: [

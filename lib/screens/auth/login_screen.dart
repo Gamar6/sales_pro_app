@@ -52,6 +52,7 @@ class _LoginScreenState extends State<LoginScreen> {
         final user = response.user;
         if (user != null) {
           await prefs.setString('user_name', user.name);
+          await prefs.setString('username', user.username);
         }
 
         if (!mounted) return;

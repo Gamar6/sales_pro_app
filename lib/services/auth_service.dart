@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,6 +50,7 @@ class AuthService {
       prefs.remove('token'),
       prefs.remove('user_id'),
       prefs.remove('user_name'),
+      prefs.remove('username'),
     ]);
   }
 
@@ -87,6 +87,37 @@ class AuthService {
           responseData['message'] ?? 'Gagal memperbarui kata sandi.',
         );
       }
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('Koneksi gagal. Pastikan server backend aktif.');
+    }
+  }
+
+  Future<void> changeUsername(String username) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      if (token == null) {
+        throw Exception('Sesi berakhir, silakan login kembali.');
+      }
+
+      final response = await http.put(
+        Uri.parse('${ApiConfig.baseUrl}/user/username'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'username': username}),
+      );
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception(responseData['message'] ?? 'Gagal mengubah username.');
+      }
+
+      await prefs.setString('username', username);
     } catch (e) {
       if (e is Exception) rethrow;
       throw Exception('Koneksi gagal. Pastikan server backend aktif.');
@@ -163,4 +194,4 @@ class AuthService {
       throw Exception('Koneksi gagal. Pastikan server backend aktif.');
     }
   }
-} 
+}

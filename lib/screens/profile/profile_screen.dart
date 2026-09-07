@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_service.dart';
 import 'change_password_screen.dart';
 
@@ -15,7 +16,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _pushNotifications = true;
   bool _locationServices = true;
   bool _isUploading = false;
-
+  String _salesName = 'Sarah Jenkins';
+  String _username = '';
+  String _userRole = 'User';
+  String _phone = '-';
+  String _email = '-';
   String _profileImageUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCJDXKmFNJE-LN9nd914mMkcouhS8RrXJgEm3c38hDZ51q0TyR3OMC9sAPVRkTqatZMb-Y6s0AtuMRAMBBeK4W02tT8PoHx8O6ePV9vLYNoM4ZFUzH-adcweUPKXoZXM4aJj3-VWAJZB4V5LoTm7EZb7ALTuwbBryDXaPHOHr3miJ09CzxKxpz-9PnRZr-UJbbPzI9j37KDvyMfV_qR-B3GcoCg_pVRwOCGJWNvngyNaRk67_61gd3L';
 
@@ -139,6 +144,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void initState() {
+    _loadSalesName();
     super.initState();
     _loadUserProfile();
   }
@@ -159,6 +165,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final userData = await AuthService().getProfile();
       final String? photoUrl = userData['profile_photo_url'];
+      final prefs = await SharedPreferences.getInstance();
+      final username =
+          userData['username']?.toString() ?? prefs.getString('username') ?? '';
+      final name = userData['name']?.toString();
+      final role =
+          userData['role']?.toString() ??
+          userData['role_name']?.toString() ??
+          'User';
+      final phone =
+          userData['phone']?.toString() ??
+          userData['phone_number']?.toString() ??
+          '-';
+      final email = userData['email']?.toString() ?? '-';
+
+      if (name != null && name.isNotEmpty) {
+        await prefs.setString('user_name', name);
+      }
+      if (username.isNotEmpty) {
+        await prefs.setString('username', username);
+      }
+
+      if (mounted) {
+        setState(() {
+          if (name != null && name.isNotEmpty) _salesName = name;
+          _username = username;
+          _userRole = role;
+          _phone = phone;
+          _email = email;
+        });
+      }
 
       if (photoUrl != null && photoUrl.isNotEmpty && mounted) {
         // Update cache lokal
@@ -171,6 +207,73 @@ class _ProfileScreenState extends State<ProfileScreen> {
       }
     } catch (e) {
       print('Gagal load dari API, memakai cache lokal: $e');
+    }
+  }
+
+  Future<void> _loadSalesName() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedName = prefs.getString('user_name');
+    final savedUsername = prefs.getString('username');
+
+    if (!mounted) return;
+
+    setState(() {
+      if (savedName != null && savedName.isNotEmpty) _salesName = savedName;
+      _username = savedUsername ?? '';
+    });
+  }
+
+  Future<void> _changeUsername() async {
+    final controller = TextEditingController(text: _username);
+    final newUsername = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Change Username'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(labelText: 'Username'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Batal'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('Simpan'),
+          ),
+        ],
+      ),
+    );
+    controller.dispose();
+
+    if (newUsername == null || newUsername.isEmpty || !mounted) return;
+
+    try {
+      await AuthService().changeUsername(newUsername);
+      if (!mounted) return;
+      setState(() => _username = newUsername);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Username berhasil diperbarui.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _contactAdmin() async {
+    final uri = Uri(
+      scheme: 'mailto',
+      path: 'admin@fivafood.com',
+      queryParameters: {'subject': 'Bantuan akun Fiva Food'},
+    );
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
   }
 
@@ -321,18 +424,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Sarah Jenkins',
-            style: TextStyle(
+          Text(
+            _salesName,
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Color(0xFF031636),
             ),
           ),
           const SizedBox(height: 4),
-          const Text(
-            'Senior Field Representative',
-            style: TextStyle(fontSize: 14, color: Color(0xFF44474E)),
+          Text(
+            _username.isEmpty ? _userRole : '$_userRole · $_username',
+            style: const TextStyle(fontSize: 14, color: Color(0xFF44474E)),
           ),
           const SizedBox(height: 16),
           Wrap(
@@ -340,8 +443,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
             runSpacing: 8,
             alignment: WrapAlignment.center,
             children: [
-              _buildContactChip(Icons.call, '(555) 019-2834'),
-              _buildContactChip(Icons.mail, 's.jenkins@fieldauth.com'),
+              _buildContactChip(
+                Icons.badge,
+                _username.isEmpty ? 'Username' : _username,
+              ),
+              _buildContactChip(Icons.call, _phone),
+              _buildContactChip(Icons.mail, _email),
             ],
           ),
         ],
@@ -394,28 +501,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           children: [
-            _buildActionCard(
-              icon: Icons.edit_square,
-              title: 'Edit Profile',
-              subtitle: 'Update basic info',
-              iconBgColor: const Color(0xFF1A2B4C),
-              iconColor: const Color(0xFF8293BA),
-            ),
             const SizedBox(height: 8),
             _buildActionCard(
               icon: Icons.badge,
-              title: 'Change Name',
-              subtitle: 'Legal name updates',
+              title: 'Change Username',
+              subtitle: _username.isEmpty
+                  ? 'Perbarui username akun'
+                  : _username,
               iconBgColor: const Color(0xFFE5EEFF),
               iconColor: const Color(0xFF0B1C30),
+              onTap: _changeUsername,
             ),
             const SizedBox(height: 8),
             _buildActionCard(
-              icon: Icons.phone_iphone,
-              title: 'Change Phone',
-              subtitle: 'Primary contact number',
+              icon: Icons.support_agent,
+              title: 'Hubungi Admin',
+              subtitle: 'Butuh bantuan terkait akun?',
               iconBgColor: const Color(0xFFE5EEFF),
               iconColor: const Color(0xFF0B1C30),
+              onTap: _contactAdmin,
             ),
             const SizedBox(height: 8),
             _buildActionCard(
@@ -531,55 +635,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 color: Colors.black.withValues(alpha: 0.03),
                 blurRadius: 5,
                 offset: const Offset(0, 1),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              SwitchListTile(
-                secondary: const Icon(
-                  Icons.notifications_outlined,
-                  color: Color(0xFF44474E),
-                ),
-                title: const Text(
-                  'Push Notifications',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF0B1C30),
-                  ),
-                ),
-                value: _pushNotifications,
-                activeThumbColor: Colors.white,
-                activeTrackColor: const Color(0xFF031636),
-                onChanged: (bool value) {
-                  setState(() {
-                    _pushNotifications = value;
-                  });
-                },
-              ),
-              const Divider(height: 1, color: Color(0xFFC5C6CF)),
-              SwitchListTile(
-                secondary: const Icon(
-                  Icons.location_on_outlined,
-                  color: Color(0xFF44474E),
-                ),
-                title: const Text(
-                  'Location Services',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF0B1C30),
-                  ),
-                ),
-                value: _locationServices,
-                activeThumbColor: Colors.white,
-                activeTrackColor: const Color(0xFF031636),
-                onChanged: (bool value) {
-                  setState(() {
-                    _locationServices = value;
-                  });
-                },
               ),
             ],
           ),
