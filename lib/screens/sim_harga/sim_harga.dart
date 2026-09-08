@@ -277,8 +277,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
   // ============================================================
 
   Widget _buildFormSection() {
-    final product = _selectedProduct;
-
+    
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

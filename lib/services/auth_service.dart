@@ -194,4 +194,71 @@ class AuthService {
       throw Exception('Koneksi gagal. Pastikan server backend aktif.');
     }
   }
+
+  Future<String> forgotPassword(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/forgot-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+
+      Map<String, dynamic> responseData = {};
+
+      if (response.body.isNotEmpty) {
+        responseData = jsonDecode(response.body);
+      }
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return responseData['message'] ??
+            'Link reset password berhasil dikirim ke email.';
+      }
+
+      throw Exception(
+        responseData['message'] ?? 'Gagal mengirim permintaan reset password.',
+      );
+    } catch (e) {
+      if (e is Exception) rethrow;
+
+      throw Exception('Koneksi gagal. Pastikan server backend aktif.');
+    }
+  }
+
+  Future<String> resetPassword({
+    required String email,
+    required String token,
+    required String password,
+    required String passwordConfirmation,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/reset-password'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'token': token,
+          'password': password,
+          'password_confirmation': passwordConfirmation,
+        }),
+      );
+
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return responseData['message'] ?? 'Password berhasil diubah.';
+      }
+
+      throw Exception(responseData['message'] ?? 'Gagal mengubah password.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+
+      throw Exception('Koneksi gagal. Pastikan server backend aktif.');
+    }
+  }
 }

@@ -13,8 +13,6 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
-  bool _pushNotifications = true;
-  bool _locationServices = true;
   bool _isUploading = false;
   String _salesName = 'Sarah Jenkins';
   String _username = '';

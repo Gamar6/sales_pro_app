@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'forgot_password_screen.dart';
 import '../../models/login_response.dart';
 import '../../services/auth_service.dart';
 
@@ -234,7 +235,14 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       children: [
         TextButton(
-          onPressed: () {},
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ForgotPasswordScreen(),
+              ),
+            );
+          },
           child: Text(
             'Lupa Password?',
             style: TextStyle(
