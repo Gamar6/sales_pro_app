@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../../models/visit_model.dart';
 import '../../services/visit_service.dart';
 
@@ -18,6 +19,12 @@ class VisitFormPage extends StatefulWidget {
 }
 
 class _VisitFormPageState extends State<VisitFormPage> {
+  static const Color _primaryColor = Color(0xFF003F87);
+  static const Color _backgroundColor = Color(0xFFF6FAFF);
+  static const Color _textColor = Color(0xFF141D23);
+  static const Color _secondaryTextColor = Color(0xFF727784);
+  static const Color _borderColor = Color(0xFFC2C6D4);
+
   final VisitService _visitService = VisitService();
   final ImagePicker _picker = ImagePicker();
 
@@ -26,14 +33,17 @@ class _VisitFormPageState extends State<VisitFormPage> {
   final TextEditingController _stokPersenController = TextEditingController();
   final TextEditingController _stokPcsController = TextEditingController();
   final TextEditingController _catatanController = TextEditingController();
+  final TextEditingController _lainLainController = TextEditingController();
 
   String? _currentVisitId;
+
   bool _isFetchingVisitId = false;
   bool _isLoading = false;
 
   bool _isCheckChecked = false;
   bool _isVisitChecked = false;
   bool _isStikerChecked = false;
+  bool _isOrderChecked = false;
   bool _isLainLainChecked = false;
 
   final List<XFile> _selectedImages = [];
@@ -41,10 +51,10 @@ class _VisitFormPageState extends State<VisitFormPage> {
   @override
   void initState() {
     super.initState();
+
     _outletController = TextEditingController(text: widget.outletName);
     _currentVisitId = widget.visitId;
 
-    // Fetch ID otomatis jika tidak di-pass dari widget parent
     if (_currentVisitId == null || _currentVisitId!.isEmpty) {
       _fetchActiveVisitId();
     }
@@ -57,35 +67,78 @@ class _VisitFormPageState extends State<VisitFormPage> {
     _stokPersenController.dispose();
     _stokPcsController.dispose();
     _catatanController.dispose();
+    _lainLainController.dispose();
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // GETTERS
+  // ---------------------------------------------------------------------------
+
   List<String> get _selectedAktivitas {
-    final list = <String>[];
-    if (_isCheckChecked) list.add('Cek');
-    if (_isVisitChecked) list.add('Visit');
-    if (_isStikerChecked) list.add('Pemasangan Stiker');
-    if (_isLainLainChecked) list.add('Lain-lain');
-    return list;
+    final aktivitas = <String>[];
+
+    if (_isCheckChecked) {
+      aktivitas.add('Cek');
+    }
+
+    if (_isVisitChecked) {
+      aktivitas.add('Visit');
+    }
+
+    if (_isStikerChecked) {
+      aktivitas.add('Pemasangan Stiker');
+    }
+
+    if (_isOrderChecked) {
+      aktivitas.add('Order');
+    }
+
+    if (_isLainLainChecked) {
+      aktivitas.add('Lain-lain');
+    }
+
+    return aktivitas;
   }
 
+  bool get _hasVisitId =>
+      _currentVisitId != null && _currentVisitId!.isNotEmpty;
+
+  bool get _isBusy => _isLoading || _isFetchingVisitId;
+
+  // ---------------------------------------------------------------------------
+  // VISIT ID
+  // ---------------------------------------------------------------------------
+
   Future<void> _fetchActiveVisitId() async {
-    setState(() => _isFetchingVisitId = true);
+    setState(() {
+      _isFetchingVisitId = true;
+    });
+
     try {
       final activeId = await _visitService.getActiveVisit();
-      if (mounted) {
-        setState(() => _currentVisitId = activeId);
-      }
+
+      if (!mounted) return;
+
+      setState(() {
+        _currentVisitId = activeId;
+      });
     } catch (e) {
-      if (mounted) {
-        _showMessage('Gagal mengambil ID Kunjungan aktif: $e');
-      }
+      if (!mounted) return;
+
+      _showMessage('Gagal mengambil ID Kunjungan aktif: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isFetchingVisitId = false);
-      }
+      if (!mounted) return;
+
+      setState(() {
+        _isFetchingVisitId = false;
+      });
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // IMAGE
+  // ---------------------------------------------------------------------------
 
   Future<void> _pickImage(ImageSource source) async {
     if (_selectedImages.length >= 4) {
@@ -93,82 +146,99 @@ class _VisitFormPageState extends State<VisitFormPage> {
       return;
     }
 
-    final XFile? pickedFile = await _picker.pickImage(
-      source: source,
-      imageQuality: 70,
-    );
-
-    if (pickedFile != null) {
-      setState(() => _selectedImages.add(pickedFile));
-    }
-  }
-
-  Future<void> _submitForm() async {
-    if (_currentVisitId == null || _currentVisitId!.isEmpty) {
-      _showMessage('Gagal menyimpan: ID Kunjungan tidak ditemukan!');
-      return;
-    }
-
-    final validationMessage = _validateForm();
-    if (validationMessage != null) {
-      _showMessage(validationMessage);
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final requestModel = VisitRequestModel(
-      outletName: widget.outletName,
-      visitId:
-          _currentVisitId, // FIX: Gunakan variabel internal _currentVisitId
-      pic: _picController.text.trim(),
-      sisaStokPersen: _stokPersenController.text.trim(),
-      sisaStokPcs: _stokPcsController.text.trim(),
-      catatan: _catatanController.text.trim(),
-      aktivitas: _selectedAktivitas,
-      photos: _selectedImages,
-    );
-
     try {
-      await _visitService.submitVisit(requestModel);
+      final XFile? pickedFile = await _picker.pickImage(
+        source: source,
+        imageQuality: 70,
+      );
 
-      if (mounted) {
-        _showMessage('Data kunjungan berhasil disimpan!');
-        Navigator.pop(context, VisitFormResult.completed);
-      }
+      if (pickedFile == null || !mounted) return;
+
+      setState(() {
+        _selectedImages.add(pickedFile);
+      });
     } catch (e) {
-      if (mounted) {
-        final message = e.toString().replaceFirst('Exception: ', '');
-        _showMessage('Gagal mengirim laporan: $message');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+
+      _showMessage('Gagal mengambil foto: $e');
     }
   }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+    });
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Wrap(
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera, color: _primaryColor),
+                title: const Text('Kamera'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: _primaryColor),
+                title: const Text('Galeri'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // FORM VALIDATION
+  // ---------------------------------------------------------------------------
 
   String? _validateForm() {
+    if (!_hasVisitId) {
+      return 'ID Kunjungan tidak ditemukan.';
+    }
+
     if (_picController.text.trim().isEmpty) {
       return 'Nama PIC penanggung jawab wajib diisi.';
     }
+
     if (_selectedAktivitas.isEmpty) {
       return 'Pilih minimal satu aktivitas kunjungan.';
     }
-    if (_stokPersenController.text.trim().isEmpty &&
-        _stokPcsController.text.trim().isEmpty) {
+
+    if (_isLainLainChecked && _lainLainController.text.trim().isEmpty) {
+      return 'Jelaskan aktivitas lain-lain.';
+    }
+
+    final stokPersen = _stokPersenController.text.trim();
+    final stokPcs = _stokPcsController.text.trim();
+
+    if (stokPersen.isEmpty && stokPcs.isEmpty) {
       return 'Isi sisa stok dalam persen atau pcs.';
     }
 
-    final percentageText = _stokPersenController.text.trim();
-    if (percentageText.isNotEmpty) {
-      final percentage = int.tryParse(percentageText);
+    if (stokPersen.isNotEmpty) {
+      final percentage = int.tryParse(stokPersen);
+
       if (percentage == null || percentage < 0 || percentage > 100) {
         return 'Sisa stok persen harus berupa angka 0 sampai 100.';
       }
     }
 
-    final piecesText = _stokPcsController.text.trim();
-    if (piecesText.isNotEmpty) {
-      final pieces = int.tryParse(piecesText);
+    if (stokPcs.isNotEmpty) {
+      final pieces = int.tryParse(stokPcs);
+
       if (pieces == null || pieces < 0) {
         return 'Sisa stok pcs harus berupa angka 0 atau lebih.';
       }
@@ -181,47 +251,139 @@ class _VisitFormPageState extends State<VisitFormPage> {
     return null;
   }
 
+  // ---------------------------------------------------------------------------
+  // SUBMIT
+  // ---------------------------------------------------------------------------
+
+  Future<void> _submitForm() async {
+    final validationMessage = _validateForm();
+
+    if (validationMessage != null) {
+      _showMessage(validationMessage);
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final requestModel = VisitRequestModel(
+      outletName: widget.outletName,
+      visitId: _currentVisitId,
+      pic: _picController.text.trim(),
+      sisaStokPersen: _stokPersenController.text.trim(),
+      sisaStokPcs: _stokPcsController.text.trim(),
+      catatan: _buildCatatan(),
+      aktivitas: _selectedAktivitas,
+      photos: _selectedImages,
+    );
+
+    try {
+      await _visitService.submitVisit(requestModel);
+
+      if (!mounted) return;
+
+      _showMessage('Data kunjungan berhasil disimpan!');
+
+      Navigator.pop(context, VisitFormResult.completed);
+    } catch (e) {
+      if (!mounted) return;
+
+      final message = e.toString().replaceFirst('Exception: ', '');
+
+      _showMessage('Gagal mengirim laporan: $message');
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _buildCatatan() {
+    final catatan = _catatanController.text.trim();
+    final lainLain = _lainLainController.text.trim();
+
+    if (!_isLainLainChecked || lainLain.isEmpty) {
+      return catatan;
+    }
+
+    if (catatan.isEmpty) {
+      return 'Lain-lain: $lainLain';
+    }
+
+    return '$catatan\nLain-lain: $lainLain';
+  }
+
+  // ---------------------------------------------------------------------------
+  // CANCEL
+  // ---------------------------------------------------------------------------
+
   Future<void> _cancelVisit() async {
-    final visitId = _currentVisitId;
-    if (visitId == null || visitId.isEmpty || _isLoading) return;
+    if (!_hasVisitId || _isLoading) {
+      return;
+    }
 
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Batalkan kunjungan?'),
-        content: const Text(
-          'Laporan yang belum dikirim tidak akan disimpan dan toko dapat dikunjungi kembali.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Kembali'),
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Batalkan kunjungan?'),
+          content: const Text(
+            'Laporan yang belum dikirim tidak akan disimpan '
+            'dan toko dapat dikunjungi kembali.',
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Batalkan Kunjungan'),
-          ),
-        ],
-      ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
+              child: const Text('Kembali'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: const Text('Batalkan Kunjungan'),
+            ),
+          ],
+        );
+      },
     );
 
-    if (confirmed != true || !mounted) return;
+    if (confirmed != true || !mounted) {
+      return;
+    }
 
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+    });
+
     try {
-      await _visitService.cancelVisit(visitId);
-      if (mounted) {
-        Navigator.pop(context, VisitFormResult.cancelled);
-      }
+      await _visitService.cancelVisit(_currentVisitId!);
+
+      if (!mounted) return;
+
+      Navigator.pop(context, VisitFormResult.cancelled);
     } catch (e) {
-      if (mounted) {
-        final message = e.toString().replaceFirst('Exception: ', '');
-        _showMessage('Gagal membatalkan kunjungan: $message');
-      }
+      if (!mounted) return;
+
+      final message = e.toString().replaceFirst('Exception: ', '');
+
+      _showMessage('Gagal membatalkan kunjungan: $message');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // UI HELPERS
+  // ---------------------------------------------------------------------------
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(
@@ -229,30 +391,79 @@ class _VisitFormPageState extends State<VisitFormPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _showImageSourceDialog() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
+  Widget _buildTextFieldLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 12,
+        fontWeight: FontWeight.bold,
+        color: _textColor,
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    String? hintText,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    TextAlign textAlign = TextAlign.start,
+    bool readOnly = false,
+    Color? fillColor,
+    String? suffixText,
+  }) {
+    return TextField(
+      controller: controller,
+      readOnly: readOnly,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      textAlign: textAlign,
+      decoration: InputDecoration(
+        hintText: hintText,
+        suffixText: suffixText,
+        filled: fillColor != null,
+        fillColor: fillColor,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+    );
+  }
+
+  Widget _buildCheckboxItem({
+    required String label,
+    required bool value,
+    required ValueChanged<bool> onChanged,
+  }) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: _borderColor),
+          borderRadius: BorderRadius.circular(4),
+        ),
+        child: Row(
           children: [
-            ListTile(
-              leading: const Icon(Icons.photo_camera, color: Color(0xFF003F87)),
-              title: const Text('Kamera'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.camera);
-              },
-            ),
-            ListTile(
-              leading: const Icon(
-                Icons.photo_library,
-                color: Color(0xFF003F87),
+            SizedBox(
+              width: 20,
+              height: 20,
+              child: Checkbox(
+                value: value,
+                onChanged: (checked) {
+                  onChanged(checked ?? false);
+                },
+                activeColor: _primaryColor,
+                tristate: false,
               ),
-              title: const Text('Galeri'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImage(ImageSource.gallery);
-              },
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 12, color: _textColor),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -260,190 +471,170 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6FAFF),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF6FAFF),
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFF424752)),
-          tooltip: 'Kembali — kunjungan tetap aktif',
-          onPressed: _isLoading ? null : () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Fiva Food',
-          style: TextStyle(
-            color: Color(0xFF003F87),
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _cancelVisit,
-            tooltip: 'Batalkan kunjungan',
-            icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A)),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 672),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Input Kunjungan Harian',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF141D23),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Catat aktivitas operasional lapangan.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF727784)),
-                ),
-                const SizedBox(height: 20),
-                _buildFormSection(),
-                const SizedBox(height: 20),
-                _buildPhotoSection(),
-                const SizedBox(height: 24),
-                _buildSubmitButton(),
-                const SizedBox(height: 16),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // FORM SECTION
+  // ---------------------------------------------------------------------------
 
   Widget _buildFormSection() {
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: Border.all(color: const Color(0xFFC2C6D4)),
-        borderRadius: BorderRadius.circular(8.0),
+        border: Border.all(color: _borderColor),
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildTextFieldLabel('Outlet Name'),
           const SizedBox(height: 8),
-          TextField(
-            readOnly: true,
+          _buildTextField(
             controller: _outletController,
-            decoration: InputDecoration(
-              filled: true,
-              fillColor: const Color(0xFFECF5FE),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
+            readOnly: true,
+            fillColor: const Color(0xFFECF5FE),
           ),
+
           const SizedBox(height: 16),
+
           _buildTextFieldLabel('PIC'),
           const SizedBox(height: 8),
-          TextField(
+          _buildTextField(
             controller: _picController,
-            decoration: InputDecoration(
-              hintText: 'Nama penanggung jawab',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
+            hintText: 'Nama penanggung jawab',
           ),
+
           const SizedBox(height: 16),
+
           _buildTextFieldLabel('Aktivitas'),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            childAspectRatio: 3.5,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
-            children: [
-              _buildCheckboxItem(
-                'Cek',
-                _isCheckChecked,
-                (v) => setState(() => _isCheckChecked = v ?? false),
-              ),
-              _buildCheckboxItem(
-                'Visit',
-                _isVisitChecked,
-                (v) => setState(() => _isVisitChecked = v ?? false),
-              ),
-              _buildCheckboxItem(
-                'Pemasangan Stiker',
-                _isStikerChecked,
-                (v) => setState(() => _isStikerChecked = v ?? false),
-              ),
-              _buildCheckboxItem(
-                'Lain-lain',
-                _isLainLainChecked,
-                (v) => setState(() => _isLainLainChecked = v ?? false),
-              ),
-            ],
-          ),
+
+          _buildAktivitasSection(),
+
           const SizedBox(height: 16),
+
           _buildTextFieldLabel('Sisa Stok (%)'),
           const SizedBox(height: 8),
-          TextField(
+          _buildTextField(
             controller: _stokPersenController,
+            hintText: '0',
             keyboardType: TextInputType.number,
             textAlign: TextAlign.right,
-            decoration: InputDecoration(
-              hintText: '0',
-              suffixText: '% ',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
+            suffixText: '% ',
           ),
+
           const SizedBox(height: 16),
+
           _buildTextFieldLabel('Sisa Stok (Pcs)'),
           const SizedBox(height: 8),
-          TextField(
+          _buildTextField(
             controller: _stokPcsController,
+            hintText: '0',
             keyboardType: TextInputType.number,
             textAlign: TextAlign.right,
-            decoration: InputDecoration(
-              hintText: '0',
-              suffixText: 'Pcs ',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
+            suffixText: 'Pcs ',
           ),
+
           const SizedBox(height: 16),
+
           _buildTextFieldLabel('Catatan'),
           const SizedBox(height: 8),
-          TextField(
+          _buildTextField(
             controller: _catatanController,
+            hintText: 'Masukkan catatan kunjungan...',
             maxLines: 4,
-            decoration: InputDecoration(
-              hintText: 'Masukkan catatan kunjungan...',
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
           ),
         ],
       ),
     );
   }
 
+  Widget _buildAktivitasSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          childAspectRatio: 3.5,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          children: [
+            _buildCheckboxItem(
+              label: 'Cek',
+              value: _isCheckChecked,
+              onChanged: (value) {
+                setState(() {
+                  _isCheckChecked = value ?? false;
+                });
+              },
+            ),
+            _buildCheckboxItem(
+              label: 'Visit',
+              value: _isVisitChecked,
+              onChanged: (value) {
+                setState(() {
+                  _isVisitChecked = value ?? false;
+                });
+              },
+            ),
+            _buildCheckboxItem(
+              label: 'Pemasangan Stiker',
+              value: _isStikerChecked,
+              onChanged: (value) {
+                setState(() {
+                  _isStikerChecked = value ?? false;
+                });
+              },
+            ),
+            _buildCheckboxItem(
+              label: 'Order',
+              value: _isOrderChecked,
+              onChanged: (value) {
+                setState(() {
+                  _isOrderChecked = value ?? false;
+                });
+              },
+            ),
+            _buildCheckboxItem(
+              label: 'Lain-lain',
+              value: _isLainLainChecked,
+              onChanged: (value) {
+                setState(() {
+                  _isLainLainChecked = value ?? false;
+
+                  // Bersihkan input ketika Lain-lain dinonaktifkan.
+                  if (!_isLainLainChecked) {
+                    _lainLainController.clear();
+                  }
+                });
+              },
+            ),
+          ],
+        ),
+
+        // Field hanya muncul jika Lain-lain dicentang.
+        if (_isLainLainChecked) ...[
+          const SizedBox(height: 12),
+          _buildTextFieldLabel('Detail Lain-lain'),
+          const SizedBox(height: 8),
+          _buildTextField(
+            controller: _lainLainController,
+            hintText: 'Contoh: Display produk, pengecekan freezer, dll.',
+            maxLines: 2,
+          ),
+        ],
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // PHOTO SECTION
+  // ---------------------------------------------------------------------------
+
   Widget _buildPhotoSection() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -451,7 +642,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
             _buildTextFieldLabel('Dokumentasi Foto'),
             Text(
               '${_selectedImages.length}/4 Foto',
-              style: const TextStyle(fontSize: 12, color: Color(0xFF727784)),
+              style: const TextStyle(fontSize: 12, color: _secondaryTextColor),
             ),
           ],
         ),
@@ -468,87 +659,90 @@ class _VisitFormPageState extends State<VisitFormPage> {
               ? _selectedImages.length + 1
               : 4,
           itemBuilder: (context, index) {
-            if (index == _selectedImages.length && _selectedImages.length < 4) {
-              return InkWell(
-                onTap: _showImageSourceDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFC2C6D4)),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.add_a_photo,
-                        color: Color(0xFF003F87),
-                        size: 20,
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        'TAMBAH',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF003F87),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
+            final isAddButton =
+                index == _selectedImages.length && _selectedImages.length < 4;
+
+            if (isAddButton) {
+              return _buildAddPhotoButton();
             }
 
-            return Stack(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: _SelectedImagePreview(image: _selectedImages[index]),
-                ),
-                Positioned(
-                  top: 2,
-                  right: 2,
-                  child: InkWell(
-                    onTap: () =>
-                        setState(() => _selectedImages.removeAt(index)),
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 14,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            );
+            return _buildSelectedPhoto(index);
           },
         ),
       ],
     );
   }
 
-  Widget _buildSubmitButton() {
-    // Tombol mati otomatis jika sedang kirim data ATAU sedang mengambil ID
-    final bool isButtonDisabled = _isLoading || _isFetchingVisitId;
+  Widget _buildAddPhotoButton() {
+    return InkWell(
+      onTap: _showImageSourceDialog,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border.all(color: _borderColor),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: const Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.add_a_photo, color: _primaryColor, size: 20),
+            SizedBox(height: 4),
+            Text(
+              'TAMBAH',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: _primaryColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
+  Widget _buildSelectedPhoto(int index) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: _SelectedImagePreview(image: _selectedImages[index]),
+        ),
+        Positioned(
+          top: 2,
+          right: 2,
+          child: InkWell(
+            onTap: () => _removeImage(index),
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.close, size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // SUBMIT BUTTON
+  // ---------------------------------------------------------------------------
+
+  Widget _buildSubmitButton() {
     return SizedBox(
       width: double.infinity,
       height: 48,
       child: ElevatedButton(
-        onPressed: isButtonDisabled ? null : _submitForm,
+        onPressed: _isBusy ? null : _submitForm,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF003F87),
+          backgroundColor: _primaryColor,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        child: _isLoading || _isFetchingVisitId
+        child: _isBusy
             ? const SizedBox(
                 width: 24,
                 height: 24,
@@ -565,53 +759,85 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  Widget _buildTextFieldLabel(String text) {
-    return Text(
-      text,
-      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-    );
-  }
+  // ---------------------------------------------------------------------------
+  // BUILD
+  // ---------------------------------------------------------------------------
 
-  Widget _buildCheckboxItem(
-    String label,
-    bool value,
-    ValueChanged<bool?> onChanged,
-  ) {
-    return InkWell(
-      onTap: () => onChanged(!value),
-      borderRadius: BorderRadius.circular(4),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6.0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFC2C6D4)),
-          borderRadius: BorderRadius.circular(4),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _backgroundColor,
+      appBar: AppBar(
+        backgroundColor: _backgroundColor,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF424752)),
+          tooltip: 'Kembali — kunjungan tetap aktif',
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 20,
-              height: 20,
-              child: Checkbox(
-                value: value,
-                onChanged: onChanged,
-                activeColor: const Color(0xFF003F87),
-              ),
+        title: const Text(
+          'Fiva Food',
+          style: TextStyle(
+            color: _primaryColor,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : _cancelVisit,
+            tooltip: 'Batalkan kunjungan',
+            icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A)),
+          ),
+        ],
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 672),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Input Kunjungan Harian',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: _textColor,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Catat aktivitas operasional lapangan.',
+                  style: TextStyle(fontSize: 12, color: _secondaryTextColor),
+                ),
+                const SizedBox(height: 20),
+
+                _buildFormSection(),
+
+                const SizedBox(height: 20),
+
+                _buildPhotoSection(),
+
+                const SizedBox(height: 24),
+
+                _buildSubmitButton(),
+
+                const SizedBox(height: 16),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                label,
-                style: const TextStyle(fontSize: 12, color: Color(0xFF141D23)),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
+
+// =============================================================================
+// IMAGE PREVIEW
+// =============================================================================
 
 class _SelectedImagePreview extends StatefulWidget {
   final XFile image;
@@ -628,15 +854,20 @@ class _SelectedImagePreviewState extends State<_SelectedImagePreview> {
   @override
   void initState() {
     super.initState();
-    _bytesFuture = widget.image.readAsBytes();
+    _loadImage();
   }
 
   @override
   void didUpdateWidget(covariant _SelectedImagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
+
     if (oldWidget.image.path != widget.image.path) {
-      _bytesFuture = widget.image.readAsBytes();
+      _loadImage();
     }
+  }
+
+  void _loadImage() {
+    _bytesFuture = widget.image.readAsBytes();
   }
 
   @override
