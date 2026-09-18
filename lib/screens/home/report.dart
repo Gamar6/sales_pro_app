@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:geolocator/geolocator.dart';
 
 import '../../models/visit_model.dart';
 import '../../services/visit_service.dart';
@@ -200,6 +201,35 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
+  //Geolocator
+  Future<Position> _getCurrentLocation() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!serviceEnabled) {
+      throw Exception('Layanan lokasi/GPS belum diaktifkan.');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied) {
+      throw Exception('Izin lokasi ditolak.');
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception(
+        'Izin lokasi ditolak permanen. Aktifkan melalui pengaturan aplikasi.',
+      );
+    }
+
+    return Geolocator.getCurrentPosition(
+      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // FORM VALIDATION
   // ---------------------------------------------------------------------------
@@ -255,6 +285,52 @@ class _VisitFormPageState extends State<VisitFormPage> {
   // SUBMIT
   // ---------------------------------------------------------------------------
 
+  // Future<void> _submitForm() async {
+  //   final validationMessage = _validateForm();
+
+  //   if (validationMessage != null) {
+  //     _showMessage(validationMessage);
+  //     return;
+  //   }
+
+  //   setState(() {
+  //     _isLoading = true;
+  //   });
+
+  //   final requestModel = VisitRequestModel(
+  //     outletName: widget.outletName,
+  //     visitId: _currentVisitId,
+  //     pic: _picController.text.trim(),
+  //     sisaStokPersen: _stokPersenController.text.trim(),
+  //     sisaStokPcs: _stokPcsController.text.trim(),
+  //     catatan: _buildCatatan(),
+  //     aktivitas: _selectedAktivitas,
+  //     photos: _selectedImages,
+  //   );
+
+  //   try {
+  //     await _visitService.submitVisit(requestModel);
+
+  //     if (!mounted) return;
+
+  //     _showMessage('Data kunjungan berhasil disimpan!');
+
+  //     Navigator.pop(context, VisitFormResult.completed);
+  //   } catch (e) {
+  //     if (!mounted) return;
+
+  //     final message = e.toString().replaceFirst('Exception: ', '');
+
+  //     _showMessage('Gagal mengirim laporan: $message');
+  //   } finally {
+  //     if (!mounted) return;
+
+  //     setState(() {
+  //       _isLoading = false;
+  //     });
+  //   }
+  // }
+
   Future<void> _submitForm() async {
     final validationMessage = _validateForm();
 
@@ -267,18 +343,28 @@ class _VisitFormPageState extends State<VisitFormPage> {
       _isLoading = true;
     });
 
-    final requestModel = VisitRequestModel(
-      outletName: widget.outletName,
-      visitId: _currentVisitId,
-      pic: _picController.text.trim(),
-      sisaStokPersen: _stokPersenController.text.trim(),
-      sisaStokPcs: _stokPcsController.text.trim(),
-      catatan: _buildCatatan(),
-      aktivitas: _selectedAktivitas,
-      photos: _selectedImages,
-    );
-
     try {
+      _showMessage('Mengambil lokasi GPS...');
+
+      final position = await _getCurrentLocation();
+
+      if (!mounted) return;
+
+      final requestModel = VisitRequestModel(
+        outletName: widget.outletName,
+        visitId: _currentVisitId,
+        pic: _picController.text.trim(),
+        sisaStokPersen: _stokPersenController.text.trim(),
+        sisaStokPcs: _stokPcsController.text.trim(),
+        catatan: _buildCatatan(),
+        aktivitas: _selectedAktivitas,
+        photos: _selectedImages,
+
+        latitude: position.latitude,
+        longitude: position.longitude,
+        accuracy: position.accuracy,
+      );
+
       await _visitService.submitVisit(requestModel);
 
       if (!mounted) return;
