@@ -60,10 +60,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
     _calculateSimulation();
   }
-
-  // ============================================================
-  // MENENTUKAN PACKAGING BERDASARKAN BERAT PRODUK
-  // ============================================================
+  // MENENTUKAN PACKAGING BERDASARKAN BERAT 
 
   void _updatePackaging() {
     final product = _selectedProduct;
@@ -108,10 +105,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       _packageUnit = 'Karton';
     }
   }
-
-  // ============================================================
-  // SEARCH PRODUK
-  // ============================================================
+  // SEARCH 
 
   void _onProductSearchChanged() {
     final query = _productSearchController.text.trim().toLowerCase();
@@ -128,10 +122,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       _showProductResults = true;
     });
   }
-
-  // ============================================================
-  // PILIH PRODUK
-  // ============================================================
+  // PILIH 
 
   void _selectProduct(StockProduct product) {
     setState(() {
@@ -142,10 +133,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
     _calculateSimulation();
   }
-
-  // ============================================================
-  // HITUNG SIMULASI
-  // ============================================================
+  // HITUNG 
 
   void _calculateSimulation() {
     final int qty = int.tryParse(_quantityController.text) ?? 0;
@@ -159,18 +147,12 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       _totalPrice = qty * price;
     });
   }
-
-  // ============================================================
-  // FORMAT RUPIAH
-  // ============================================================
+  // FORMAT 
 
   String _formatRupiah(double value) {
     return _currencyFormat.format(value);
   }
-
-  // ============================================================
-  // FORMAT BERAT
-  // ============================================================
+  // FORMAT 
 
   String _formatWeight(double weightKg) {
     final grams = weightKg * 1000;
@@ -188,10 +170,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     _productSearchController.dispose();
     super.dispose();
   }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
+  // 
 
   @override
   Widget build(BuildContext context) {
@@ -271,10 +250,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ),
     );
   }
-
-  // ============================================================
-  // FORM SECTION
-  // ============================================================
+  // FORM 
 
   Widget _buildFormSection() {
     
@@ -317,9 +293,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
           const SizedBox(height: 6),
 
-          // ======================================================
           // SEARCH PRODUK
-          // ======================================================
           TextField(
             controller: _productSearchController,
             onTap: () {
@@ -366,9 +340,8 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
             ),
           ),
 
-          // ======================================================
           // HASIL SEARCH
-          // ======================================================
+
           if (_showProductResults)
             Container(
               margin: const EdgeInsets.only(top: 4),
@@ -492,9 +465,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
           const SizedBox(height: 16),
 
-          // ======================================================
           // QUANTITY + PACKAGING
-          // ======================================================
           Row(
             children: [
               Expanded(child: _buildQuantityField()),
@@ -505,9 +476,8 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
           const SizedBox(height: 16),
 
-          // ======================================================
           // HARGA
-          // ======================================================
+
           _buildPriceField(),
 
           const SizedBox(height: 24),
@@ -536,9 +506,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     );
   }
 
-  // ============================================================
-  // QUANTITY FIELD
-  // ============================================================
+  // QUANTITY 
 
   Widget _buildQuantityField() {
     return Column(
@@ -564,10 +532,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ],
     );
   }
-
-  // ============================================================
-  // PACKAGE FIELD
-  // ============================================================
+  // PACKAGE 
 
   Widget _buildPackageField() {
     return Column(
@@ -592,10 +557,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ],
     );
   }
-
-  // ============================================================
-  // PRICE FIELD
-  // ============================================================
+  // PRICE 
 
   Widget _buildPriceField() {
     final price = _selectedProduct?.price ?? 0;
@@ -622,10 +584,8 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
       ],
     );
   }
-
-  // ============================================================
-  // INPUT DECORATION
-  // ============================================================
+  
+  // INPUT 
 
   InputDecoration _inputDecoration({String? suffixText, bool filled = false}) {
     return InputDecoration(
@@ -645,9 +605,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
     );
   }
 
-  // ============================================================
-  // RESULT SECTION
-  // ============================================================
+  // RESULT 
 
   Widget _buildResultSection() {
     final product = _selectedProduct;
@@ -736,9 +694,9 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
                 child: Divider(height: 1),
               ),
 
-              // ==================================================
+  
               // BERAT PRODUK
-              // ==================================================
+  
               if (product != null) ...[
                 const Text(
                   'Berat Produk',
@@ -762,10 +720,9 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
                 const SizedBox(height: 16),
               ],
-
-              // ==================================================
+  
               // TOTAL HARGA
-              // ==================================================
+  
               const Text(
                 'Total Estimasi Harga',
                 style: TextStyle(fontSize: 12, color: brandTextVariant),
@@ -819,9 +776,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
 
         const SizedBox(height: 16),
 
-        // ========================================================
         // CATATAN
-        // ========================================================
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(

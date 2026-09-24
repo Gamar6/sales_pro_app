@@ -72,9 +72,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     super.dispose();
   }
 
-  // ---------------------------------------------------------------------------
   // GETTERS
-  // ---------------------------------------------------------------------------
 
   List<String> get _selectedAktivitas {
     final aktivitas = <String>[];
@@ -107,9 +105,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
   bool get _isBusy => _isLoading || _isFetchingVisitId;
 
-  // ---------------------------------------------------------------------------
   // VISIT ID
-  // ---------------------------------------------------------------------------
 
   Future<void> _fetchActiveVisitId() async {
     setState(() {
@@ -137,9 +133,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // IMAGE
-  // ---------------------------------------------------------------------------
 
   Future<void> _pickImage(ImageSource source) async {
     if (_selectedImages.length >= 4) {
@@ -230,9 +224,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // FORM VALIDATION
-  // ---------------------------------------------------------------------------
 
   String? _validateForm() {
     if (!_hasVisitId) {
@@ -280,56 +272,6 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
     return null;
   }
-
-  // ---------------------------------------------------------------------------
-  // SUBMIT
-  // ---------------------------------------------------------------------------
-
-  // Future<void> _submitForm() async {
-  //   final validationMessage = _validateForm();
-
-  //   if (validationMessage != null) {
-  //     _showMessage(validationMessage);
-  //     return;
-  //   }
-
-  //   setState(() {
-  //     _isLoading = true;
-  //   });
-
-  //   final requestModel = VisitRequestModel(
-  //     outletName: widget.outletName,
-  //     visitId: _currentVisitId,
-  //     pic: _picController.text.trim(),
-  //     sisaStokPersen: _stokPersenController.text.trim(),
-  //     sisaStokPcs: _stokPcsController.text.trim(),
-  //     catatan: _buildCatatan(),
-  //     aktivitas: _selectedAktivitas,
-  //     photos: _selectedImages,
-  //   );
-
-  //   try {
-  //     await _visitService.submitVisit(requestModel);
-
-  //     if (!mounted) return;
-
-  //     _showMessage('Data kunjungan berhasil disimpan!');
-
-  //     Navigator.pop(context, VisitFormResult.completed);
-  //   } catch (e) {
-  //     if (!mounted) return;
-
-  //     final message = e.toString().replaceFirst('Exception: ', '');
-
-  //     _showMessage('Gagal mengirim laporan: $message');
-  //   } finally {
-  //     if (!mounted) return;
-
-  //     setState(() {
-  //       _isLoading = false;
-  //     });
-  //   }
-  // }
 
   Future<void> _submitForm() async {
     final validationMessage = _validateForm();
@@ -402,9 +344,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     return '$catatan\nLain-lain: $lainLain';
   }
 
-  // ---------------------------------------------------------------------------
   // CANCEL
-  // ---------------------------------------------------------------------------
 
   Future<void> _cancelVisit() async {
     if (!_hasVisitId || _isLoading) {
@@ -467,9 +407,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     }
   }
 
-  // ---------------------------------------------------------------------------
   // UI HELPERS
-  // ---------------------------------------------------------------------------
 
   void _showMessage(String message) {
     ScaffoldMessenger.of(
@@ -557,9 +495,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // FORM SECTION
-  // ---------------------------------------------------------------------------
 
   Widget _buildFormSection() {
     return Container(
@@ -689,7 +625,6 @@ class _VisitFormPageState extends State<VisitFormPage> {
                 setState(() {
                   _isLainLainChecked = value ?? false;
 
-                  // Bersihkan input ketika Lain-lain dinonaktifkan.
                   if (!_isLainLainChecked) {
                     _lainLainController.clear();
                   }
@@ -699,7 +634,6 @@ class _VisitFormPageState extends State<VisitFormPage> {
           ],
         ),
 
-        // Field hanya muncul jika Lain-lain dicentang.
         if (_isLainLainChecked) ...[
           const SizedBox(height: 12),
           _buildTextFieldLabel('Detail Lain-lain'),
@@ -714,9 +648,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // PHOTO SECTION
-  // ---------------------------------------------------------------------------
 
   Widget _buildPhotoSection() {
     return Column(
@@ -813,9 +745,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // SUBMIT BUTTON
-  // ---------------------------------------------------------------------------
 
   Widget _buildSubmitButton() {
     return SizedBox(
@@ -845,9 +775,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
     );
   }
 
-  // ---------------------------------------------------------------------------
   // BUILD
-  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -921,9 +849,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
   }
 }
 
-// =============================================================================
 // IMAGE PREVIEW
-// =============================================================================
 
 class _SelectedImagePreview extends StatefulWidget {
   final XFile image;

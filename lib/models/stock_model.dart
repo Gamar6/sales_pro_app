@@ -49,12 +49,10 @@ class StockProduct {
 
       price: (json['price'] as num?)?.toDouble() ?? 0,
 
-      // Berat produk dari Laravel/Odoo
       weight: (json['weight'] as num?)?.toDouble() ?? 0,
 
       weightUnit: json['weight_unit']?.toString() ?? 'kg',
 
-      // Packaging
       packageUnit: json['package_unit']?.toString() ?? 'karton',
 
       packsPerPackage: (json['packs_per_package'] as num?)?.toInt() ?? 1,

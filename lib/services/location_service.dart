@@ -1,7 +1,6 @@
 import 'package:geolocator/geolocator.dart';
 
 class LocationService {
-  // Fungsi untuk mengecek izin dan mengambil koordinat GPS saat ini
   Future<Position?> getCurrentLocation() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -28,8 +27,6 @@ class LocationService {
     );
   }
 
-  // >>> TAMBAHKAN METHOD INI UNTUK MENGATASI ERROR <<<
-  // Fungsi helper untuk menghitung jarak dalam bentuk angka (double dalam meter)
   double calculateDistance(
     double? startLat,
     double? startLng,
@@ -41,13 +38,12 @@ class LocationService {
         endLat == null ||
         endLng == null) {
       return double
-          .infinity; // Beri nilai maksimum jika koordinat tidak lengkap
+          .infinity; 
     }
 
     return Geolocator.distanceBetween(startLat, startLng, endLat, endLng);
   }
 
-  // Fungsi helper untuk menghitung jarak dan otomatis memformat ke Meter atau Kilometer (untuk ditampilkan di UI)
   String calculateDistanceString(
     Position? currentPosition,
     double? targetLat,

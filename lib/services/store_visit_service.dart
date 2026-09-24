@@ -6,13 +6,6 @@ import 'package:image_picker/image_picker.dart';
 import 'api_config.dart';
 
 class StoreVisitService {
-  /// Klaim toko untuk memulai kunjungan.
-  ///
-  /// Mengembalikan:
-  /// {
-  ///   'success': true,
-  ///   'visit_id': 123,
-  /// }
   Future<Map<String, dynamic>> claimStore({required int odooPartnerId}) async {
     try {
       final headers = await ApiConfig.getAuthHeaders();
@@ -50,9 +43,6 @@ class StoreVisitService {
     }
   }
 
-  /// Submit laporan kunjungan.
-  ///
-  /// Digunakan untuk mengirim data laporan sekaligus foto.
   Future<Map<String, dynamic>> submitReport({
     required int visitId,
     required String picName,
@@ -65,8 +55,6 @@ class StoreVisitService {
     try {
       final headers = await ApiConfig.getAuthHeaders();
 
-      // MultipartRequest akan menentukan Content-Type sendiri
-      // beserta boundary-nya, jadi Content-Type JSON harus dihapus.
       headers.remove('Content-Type');
 
       final request = http.MultipartRequest(
@@ -113,7 +101,6 @@ class StoreVisitService {
     }
   }
 
-  /// Decode response JSON dengan aman.
   Map<String, dynamic> _decodeResponse(http.Response response) {
     if (response.body.isEmpty) {
       return {};

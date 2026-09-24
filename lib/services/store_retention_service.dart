@@ -16,7 +16,6 @@ class ApiService {
     if (response.statusCode == 200) {
       final dynamic body = jsonDecode(response.body);
 
-      // Menangani format penulisan response Laravel (baik 'data' wrapper maupun array langsung)
       final List<dynamic> dataList = body is Map<String, dynamic>
           ? (body['data'] ?? [])
           : body;

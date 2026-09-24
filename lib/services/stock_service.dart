@@ -22,7 +22,7 @@ class StockService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization':
-              'Bearer $token', // Menyelipkan token ke Laravel Sanctum
+              'Bearer $token',
         },
       );
 

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 class DetailKunjunganPage extends StatelessWidget {
   final Map<String, dynamic> visit;
 
-  // Ganti baseUrl sesuai domain/IP server backend kamu
   static const String baseUrl = 'http://10.0.2.2:8000';
 
   const DetailKunjunganPage({super.key, required this.visit});

@@ -55,7 +55,6 @@ class _FieldSalesAppState extends State<FieldSalesApp> {
   }
 
   Future<void> _initializeDeepLinks() async {
-    // Tangkap link ketika aplikasi dibuka dari keadaan tertutup
     try {
       final Uri? initialUri = await _appLinks.getInitialLink();
 
@@ -68,7 +67,6 @@ class _FieldSalesAppState extends State<FieldSalesApp> {
       debugPrint('Gagal membaca initial deep link: $e');
     }
 
-    // Tangkap link ketika aplikasi sudah berjalan
     _linkSubscription = _appLinks.uriLinkStream.listen(
       (Uri uri) {
         _handleDeepLink(uri);
@@ -82,8 +80,6 @@ class _FieldSalesAppState extends State<FieldSalesApp> {
   void _handleDeepLink(Uri uri) {
     debugPrint('Deep Link diterima: $uri');
 
-    // Contoh:
-    // fieldoperations://reset-password?token=xxx&email=user@gmail.com
 
     if (uri.scheme == 'fieldoperations' && uri.host == 'reset-password') {
       final token = uri.queryParameters['token'];

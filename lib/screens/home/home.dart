@@ -528,7 +528,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Widget Terpisah: Performance Card
+// Performance Card
 class _PerformanceCard extends StatelessWidget {
   final int visitedToday;
   final int targetToday;
@@ -632,7 +632,7 @@ class _PerformanceCard extends StatelessWidget {
   }
 }
 
-// Widget Terpisah: Monthly Trip Tile
+// Monthly Trip Tile
 class _MonthlyTripTile extends StatelessWidget {
   final int monthlyTrips;
 

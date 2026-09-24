@@ -11,35 +11,27 @@ class StockPage extends StatefulWidget {
 }
 
 class _StockPageState extends State<StockPage> {
-  // ============================================================
   // CONSTANTS
-  // ============================================================
 
   static const Color brandPrimary = Color(0xFF1A2B4C);
   static const Color brandSurface = Color(0xFFF8F9FF);
   static const Color brandTextVariant = Color(0xFF44474E);
   static const Color brandOutline = Color(0xFFC5C6CF);
 
-  // ============================================================
   // API / DATA STATE
-  // ============================================================
 
   bool _isLoading = true;
   int _totalSkus = 0;
   int _lowStockCount = 0;
   List<StockProduct> _products = [];
 
-  // ============================================================
   // SEARCH STATE
-  // ============================================================
 
   final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = '';
 
-  // ============================================================
   // SORTING STATE
-  // ============================================================
 
   String _selectedSort = 'Default';
 
@@ -51,24 +43,18 @@ class _StockPageState extends State<StockPage> {
     'Nama (Z-A)',
   ];
 
-  // ============================================================
   // EXPANDED PRODUCT STATE
-  // ============================================================
 
   /// ID produk yang sedang dibuka.
   ///
   /// Hanya satu produk yang bisa expanded dalam satu waktu.
   int? _expandedProductId;
 
-  // ============================================================
   // FORMATTER
-  // ============================================================
 
   final NumberFormat _currencyFormat = NumberFormat('#,##0', 'id_ID');
 
-  // ============================================================
   // LIFECYCLE
-  // ============================================================
 
   @override
   void initState() {
@@ -82,9 +68,7 @@ class _StockPageState extends State<StockPage> {
     super.dispose();
   }
 
-  // ============================================================
   // FETCH STOCK DATA
-  // ============================================================
 
   Future<void> _fetchStockData() async {
     if (mounted) {
@@ -142,16 +126,12 @@ class _StockPageState extends State<StockPage> {
     }
   }
 
-  // ============================================================
   // SEARCH + SORT
-  // ============================================================
 
   List<StockProduct> get _filteredProducts {
     List<StockProduct> filtered = List<StockProduct>.from(_products);
 
-    // ----------------------------------------------------------
     // SEARCH
-    // ----------------------------------------------------------
 
     final query = _searchQuery.trim().toLowerCase();
 
@@ -165,9 +145,7 @@ class _StockPageState extends State<StockPage> {
       }).toList();
     }
 
-    // ----------------------------------------------------------
     // SORT
-    // ----------------------------------------------------------
 
     switch (_selectedSort) {
       case 'Stok Terbanyak':
@@ -198,9 +176,7 @@ class _StockPageState extends State<StockPage> {
     return filtered;
   }
 
-  // ============================================================
   // EXPAND / COLLAPSE
-  // ============================================================
 
   void _toggleProduct(StockProduct product) {
     setState(() {
@@ -212,9 +188,7 @@ class _StockPageState extends State<StockPage> {
     });
   }
 
-  // ============================================================
   // STATUS HELPERS
-  // ============================================================
 
   Color _getStatusColor(String status) {
     switch (status) {
@@ -244,9 +218,7 @@ class _StockPageState extends State<StockPage> {
     }
   }
 
-  // ============================================================
   // PACKAGING RULE
-  // ============================================================
 
   Map<String, dynamic> _getPackagingInfo(StockProduct product) {
     final double weightKg = product.weight;
@@ -280,9 +252,7 @@ class _StockPageState extends State<StockPage> {
     return {'packs': product.packsPerPackage, 'unit': product.packageUnit};
   }
 
-  // ============================================================
   // FORMAT HELPERS
-  // ============================================================
 
   String _formatRupiah(double value) {
     return 'Rp ${_currencyFormat.format(value)}';
@@ -314,9 +284,7 @@ class _StockPageState extends State<StockPage> {
     return qty.toStringAsFixed(2);
   }
 
-  // ============================================================
   // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
@@ -325,9 +293,7 @@ class _StockPageState extends State<StockPage> {
     return Scaffold(
       backgroundColor: brandSurface,
 
-      // --------------------------------------------------------
       // APP BAR
-      // --------------------------------------------------------
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
@@ -342,9 +308,7 @@ class _StockPageState extends State<StockPage> {
         ),
       ),
 
-      // --------------------------------------------------------
       // BODY
-      // --------------------------------------------------------
       body: RefreshIndicator(
         onRefresh: _fetchStockData,
         child: SingleChildScrollView(
@@ -356,9 +320,7 @@ class _StockPageState extends State<StockPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // ==================================================
                   // SEARCH
-                  // ==================================================
                   TextField(
                     controller: _searchController,
                     decoration: InputDecoration(
@@ -413,9 +375,7 @@ class _StockPageState extends State<StockPage> {
 
                   const SizedBox(height: 16),
 
-                  // ==================================================
                   // SUMMARY STATS
-                  // ==================================================
                   Row(
                     children: [
                       Expanded(
@@ -440,9 +400,7 @@ class _StockPageState extends State<StockPage> {
 
                   const SizedBox(height: 16),
 
-                  // ==================================================
                   // SORTING
-                  // ==================================================
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
@@ -483,9 +441,7 @@ class _StockPageState extends State<StockPage> {
 
                   const SizedBox(height: 16),
 
-                  // ==================================================
                   // INVENTORY LIST
-                  // ==================================================
                   _isLoading
                       ? const Padding(
                           padding: EdgeInsets.symmetric(vertical: 60),
@@ -525,9 +481,7 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // ============================================================
   // SUMMARY CARD
-  // ============================================================
 
   Widget _buildSummaryCard({
     required String title,
@@ -568,9 +522,7 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // ============================================================
   // PRODUCT CARD
-  // ============================================================
 
   Widget _buildProductListItem(StockProduct product, bool isExpanded) {
     final statusColor = _getStatusColor(product.status);
@@ -602,18 +554,14 @@ class _StockPageState extends State<StockPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children: [
-              // ==================================================
+            children:[
               // MAIN PRODUCT ROW
-              // ==================================================
               Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // ------------------------------------------------
                     // IMAGE
-                    // ------------------------------------------------
                     ClipRRect(
                       borderRadius: BorderRadius.circular(8),
                       child: SizedBox(
@@ -638,9 +586,7 @@ class _StockPageState extends State<StockPage> {
 
                     const SizedBox(width: 12),
 
-                    // ------------------------------------------------
                     // PRODUCT INFO
-                    // ------------------------------------------------
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -673,9 +619,7 @@ class _StockPageState extends State<StockPage> {
 
                     const SizedBox(width: 12),
 
-                    // ------------------------------------------------
                     // STOCK + STATUS
-                    // ------------------------------------------------
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
@@ -746,10 +690,7 @@ class _StockPageState extends State<StockPage> {
                   ],
                 ),
               ),
-
-              // ==================================================
-              // EXPANDED DETAIL
-              // ==================================================
+              // EXPANDED DETA
               AnimatedSize(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
@@ -769,9 +710,7 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // ============================================================
   // EXPANDED DETAIL
-  // ============================================================
 
   Widget _buildExpandedDetail(
     StockProduct product,
@@ -785,9 +724,9 @@ class _StockPageState extends State<StockPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --------------------------------------------------------
+  
           // DIVIDER
-          // --------------------------------------------------------
+  
           Divider(
             height: 1,
             thickness: 1,
@@ -796,9 +735,9 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-          // --------------------------------------------------------
+  
           // HEADER DETAIL
-          // --------------------------------------------------------
+  
           Row(
             children: [
               Container(
@@ -838,9 +777,9 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-          // --------------------------------------------------------
+  
           // DETAIL GRID
-          // --------------------------------------------------------
+  
           Row(
             children: [
               Expanded(
@@ -889,9 +828,9 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 10),
 
-          // --------------------------------------------------------
+  
           // LOCATION
-          // --------------------------------------------------------
+  
           _buildDetailItem(
             icon: Icons.location_on_outlined,
             label: 'Lokasi',
@@ -900,9 +839,9 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-          // --------------------------------------------------------
+  
           // PACKAGING INFO
-          // --------------------------------------------------------
+  
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -943,9 +882,7 @@ class _StockPageState extends State<StockPage> {
     );
   }
 
-  // ============================================================
   // DETAIL ITEM
-  // ============================================================
 
   Widget _buildDetailItem({
     required IconData icon,

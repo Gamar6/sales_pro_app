@@ -769,10 +769,6 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   }
 }
 
-// ============================================================================
-// WIDGET MARKER PETA (DENGAN LOGIKA PENANDA KUNJUNGAN)
-// ============================================================================
-
 class CustomStoreMarker extends StatefulWidget {
   final Partner partner;
   final Color statusColor;
@@ -903,7 +899,6 @@ class _CustomStoreMarkerState extends State<CustomStoreMarker>
                       size: 24,
                     ),
                   ),
-                  // Badge Penanda di Marker jika toko Sedang / Sudah Dikunjungi
                   if (partner.isOccupied)
                     Positioned(
                       top: -2,
@@ -932,10 +927,6 @@ class _CustomStoreMarkerState extends State<CustomStoreMarker>
     );
   }
 }
-
-// ============================================================================
-// STATUS CONFIG & PARTNER CARD (LOGIKA SPANDUK & STATUS TETAP DITERAPKAN)
-// ============================================================================
 
 class StatusConfig {
   final Color borderColor;

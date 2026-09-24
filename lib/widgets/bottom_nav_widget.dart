@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../screens/home/report.dart'; // Tempat VisitFormPage dsb.
+import '../screens/home/report.dart';
 
 class BottomNavWidget extends StatelessWidget {
   final int currentIndex;

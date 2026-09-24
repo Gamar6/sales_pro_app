@@ -74,7 +74,7 @@ class Partner {
       );
     }
 
-    // Fallback jika tidak ada claim_info atau salesName di claim_info masih kosong
+    // Fallback 
     if (statusRaw.isEmpty) {
       statusRaw = _parseString(json['visit_status'] ?? json['status']);
     }

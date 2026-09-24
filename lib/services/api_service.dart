@@ -6,7 +6,6 @@ import 'api_config.dart';
 class ApiService {
   Future<List<Partner>> fetchPartners() async {
     try {
-      // Mengambil header lengkap beserta Authorization Bearer Token
       final headers = await ApiConfig.getAuthHeaders();
 
       final response = await http.get(

@@ -33,7 +33,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Panggil method di AuthService
+      // AuthService Method
       await AuthService().changePassword(
         currentPassword: _currentPasswordController.text,
         newPassword: _newPasswordController.text,
@@ -125,7 +125,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Password Saat Ini
                   _buildPasswordField(
                     controller: _currentPasswordController,
                     label: 'Kata Sandi Saat Ini',
@@ -140,7 +139,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Password Baru
                   _buildPasswordField(
                     controller: _newPasswordController,
                     label: 'Kata Sandi Baru',
@@ -159,8 +157,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-
-                  // Konfirmasi Password Baru
+                  
                   _buildPasswordField(
                     controller: _confirmPasswordController,
                     label: 'Konfirmasi Kata Sandi Baru',
@@ -178,7 +175,6 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   const SizedBox(height: 32),
 
-                  // Tombol Simpan
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(

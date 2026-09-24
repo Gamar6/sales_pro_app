@@ -121,9 +121,7 @@ class VisitService {
           return message.toString();
         }
       }
-    } catch (_) {
-      // Respons non-JSON akan memakai pesan umum di bawah.
-    }
+    } catch (_) {}
 
     return 'Gagal mengirim laporan (status ${response.statusCode}).';
   }
@@ -146,7 +144,7 @@ class VisitService {
       final response = await http.get(
         Uri.parse(
           '${ApiConfig.baseUrl}/store-visits/history',
-        ), // Sesuaikan endpoint API history di Laravel kamu
+        ), 
         headers: headers,
       );
 
@@ -154,7 +152,6 @@ class VisitService {
 
       final decoded = jsonDecode(response.body);
 
-      // Sesuaikan struktur parsing ini dengan format JSON dari response backend Laravel
       if (decoded is Map<String, dynamic> && decoded['data'] != null) {
         final data = decoded['data'];
         if (data is List) {

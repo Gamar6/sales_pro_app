@@ -45,12 +45,10 @@ class _LoginScreenState extends State<LoginScreen> {
       if (response.success || response.token != null) {
         final prefs = await SharedPreferences.getInstance();
 
-        // 1. Simpan Token
         if (response.token != null) {
           await prefs.setString('token', response.token!);
         }
 
-        // 2. Simpan Nama User / Sales ke SharedPreferences
         final user = response.user;
         if (user != null) {
           await prefs.setString('user_name', user.name);
@@ -59,7 +57,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
         if (!mounted) return;
 
-        // Pindah ke Halaman Home
         Navigator.pushReplacementNamed(context, '/home');
       } else {
         _showErrorSnackBar(response.message);
