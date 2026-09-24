@@ -33,7 +33,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // State Data Dinamis
   bool _isLoadingDashboard = true;
   int _visitedToday = 0;
-  final int _targetToday = 6;
+  final int _targetToday = 5;
   int _monthlyTrips = 0;
   List<dynamic> _recentVisits = [];
 

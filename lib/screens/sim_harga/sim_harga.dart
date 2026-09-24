@@ -208,7 +208,7 @@ class _PriceSimulationPageState extends State<PriceSimulationPage> {
         appBar: AppBar(
           backgroundColor: Colors.white,
           elevation: 1,
-          centerTitle: true,
+          centerTitle: false,
           title: const Text(
             'Simulasi Produk',
             style: TextStyle(

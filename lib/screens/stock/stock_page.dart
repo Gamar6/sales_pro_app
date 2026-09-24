@@ -335,7 +335,7 @@ class _StockPageState extends State<StockPage> {
         title: const Text(
           'Stock Levels',
           style: TextStyle(
-            fontSize: 22,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
             color: brandPrimary,
           ),

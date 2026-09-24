@@ -54,7 +54,6 @@ class AuthService {
     ]);
   }
 
-  // Method baru untuk ganti password
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -133,7 +132,6 @@ class AuthService {
         throw Exception('Sesi berakhir, silakan login kembali.');
       }
 
-      // Sesuaikan endpoint ini dengan route Laravel kamu (misal: /user atau /profile)
       final uri = Uri.parse('${ApiConfig.baseUrl}/user');
       final response = await http.get(
         uri,
@@ -146,8 +144,6 @@ class AuthService {
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
-        // Jika Laravel mengembalikan { "data": { ... } }, gunakan responseData['data']
-        // Jika Laravel mengembalikan langsung object user { "id": 1, ... }, gunakan responseData
         return responseData['data'] ?? responseData;
       } else {
         throw Exception(responseData['message'] ?? 'Gagal memuat data profil.');
@@ -172,7 +168,6 @@ class AuthService {
         ..headers['Accept'] = 'application/json'
         ..headers['Authorization'] = 'Bearer $token';
 
-      // Baca file dalam bentuk bytes agar aman untuk Flutter Web & Mobile
       final bytes = await imageFile.readAsBytes();
       request.files.add(
         http.MultipartFile.fromBytes('photo', bytes, filename: imageFile.name),

@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'forgot_password_screen.dart';
 import '../../models/login_response.dart';
 import '../../services/auth_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -69,6 +70,40 @@ class _LoginScreenState extends State<LoginScreen> {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _contactAdmin() async {
+    const adminPhone = '6281315080070';
+
+    final message = Uri.encodeComponent(
+      'Halo Admin,\n\n'
+      'Saya ingin melaporkan kendala terkait akun saya dengan detail sebagai berikut:\n\n'
+      'Nama Pengguna/Email: [Masukkan Nama/Email]\n'
+      'Kendala yang Dihadapi: [Jelaskan singkat, misal: tidak bisa login / gagal memuat halaman]\n'
+      'Pesan Error (jika ada): [Masukkan pesan error. Pesan error boleh berupa gambar]\n\n'
+      'Mohon bantuan dan arahannya untuk menyelesaikan kendala ini.\n'
+      'Terima kasih.',
+    );
+
+    final uri = Uri.parse('https://wa.me/$adminPhone?text=$message');
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WhatsApp tidak dapat dibuka.')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Gagal membuka WhatsApp.')));
     }
   }
 
@@ -260,7 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 8),
         TextButton.icon(
-          onPressed: () {},
+          onPressed: _contactAdmin,
           icon: const Icon(Icons.support_agent, size: 16, color: Colors.white),
           label: Text(
             'Hubungi Admin',
