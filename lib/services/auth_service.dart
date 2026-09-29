@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/login_response.dart';
 import '../services/api_config.dart';
+import '../models/contact_person.dart';
 
 class AuthService {
   Future<LoginResponse> login(String username, String password) async {
@@ -250,6 +251,39 @@ class AuthService {
       }
 
       throw Exception(responseData['message'] ?? 'Gagal mengubah password.');
+    } catch (e) {
+      if (e is Exception) rethrow;
+
+      throw Exception('Koneksi gagal. Pastikan server backend aktif.');
+    }
+  }
+
+  Future<List<ContactPerson>> getContactPersons() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/contact-persons'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      final Map<String, dynamic> responseData = jsonDecode(response.body);
+
+      if (response.statusCode != 200) {
+        throw Exception(
+          responseData['message'] ?? 'Gagal memuat daftar admin.',
+        );
+      }
+
+      final data = responseData['data'];
+
+      if (data is! List) {
+        return [];
+      }
+
+      return data
+          .map(
+            (item) => ContactPerson.fromJson(Map<String, dynamic>.from(item)),
+          )
+          .toList();
     } catch (e) {
       if (e is Exception) rethrow;
 

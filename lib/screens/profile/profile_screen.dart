@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/auth_service.dart';
+import '../../models/contact_person.dart';
 import 'change_password_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -262,37 +263,139 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _contactAdmin() async {
-    const adminPhone = '6281315080070';
-
-    final message = Uri.encodeComponent(
-      'Halo Admin,\n\n'
-      'Saya ingin melaporkan kendala terkait akun saya dengan detail sebagai berikut:\n\n'
-      'Nama Pengguna/Email: [Masukkan Nama/Email]\n'
-      'Kendala yang Dihadapi: [Jelaskan singkat, misal: tidak bisa login / gagal memuat halaman]\n'
-      'Pesan Error (jika ada): [Masukkan pesan error. Pesan error boleh berupa gambar]\n\n'
-      'Mohon bantuan dan arahannya untuk menyelesaikan kendala ini.\n'
-      'Terima kasih.',
-    );
-
-    final uri = Uri.parse('https://wa.me/$adminPhone?text=$message');
-
     try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (!mounted) return;
+      final contactPersons = await AuthService().getContactPersons();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WhatsApp tidak dapat dibuka.')),
-        );
+      if (!mounted) return;
+
+      if (contactPersons.isEmpty) {
+        _showErrorSnackBar('Belum ada admin yang dapat dihubungi.');
+        return;
       }
+
+      if (contactPersons.length == 1) {
+        await _openWhatsApp(contactPersons.first);
+        return;
+      }
+
+      await _showContactPersonPicker(contactPersons);
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Gagal membuka WhatsApp.')));
+      _showErrorSnackBar(e.toString().replaceFirst('Exception: ', ''));
     }
+  }
+
+  Future<void> _openWhatsApp(ContactPerson contact) async {
+    final phone = _normalizePhoneNumber(contact.nohp);
+
+    if (phone.isEmpty) {
+      _showErrorSnackBar('Nomor WhatsApp ${contact.name} tidak valid.');
+      return;
+    }
+
+    final message = Uri.encodeComponent(
+      'Halo ${contact.name},\n\n'
+      'Saya ingin melaporkan kendala terkait akun saya '
+      'dengan detail sebagai berikut:\n\n'
+      'Nama Pengguna/Email: [Masukkan Nama/Email]\n'
+      'Kendala yang Dihadapi: [Jelaskan singkat, '
+      'misal: tidak bisa login / gagal memuat halaman]\n'
+      'Pesan Error (jika ada): [Masukkan pesan error. '
+      'Pesan error boleh berupa gambar]\n\n'
+      'Mohon bantuan dan arahannya untuk menyelesaikan '
+      'kendala ini.\n'
+      'Terima kasih.',
+    );
+
+    final uri = Uri.parse('https://wa.me/$phone?text=$message');
+
+    if (!await canLaunchUrl(uri)) {
+      _showErrorSnackBar('WhatsApp tidak dapat dibuka.');
+      return;
+    }
+
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
+  String _normalizePhoneNumber(String value) {
+    var phone = value.replaceAll(RegExp(r'\D'), '');
+
+    if (phone.startsWith('0')) {
+      phone = '62${phone.substring(1)}';
+    } else if (phone.startsWith('8')) {
+      phone = '62$phone';
+    }
+
+    return phone;
+  }
+
+  Future<void> _showContactPersonPicker(
+    List<ContactPerson> contactPersons,
+  ) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Pilih Admin',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Pilih admin yang ingin kamu hubungi.',
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                ...contactPersons.map(
+                  (contact) => ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: CircleAvatar(
+                      child: Text(
+                        contact.name.isNotEmpty
+                            ? contact.name[0].toUpperCase()
+                            : '?',
+                      ),
+                    ),
+                    title: Text(
+                      contact.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(contact.nohp),
+                    trailing: const Icon(Icons.chat_outlined),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      await _openWhatsApp(contact);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade700,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _handleLogout() async {
