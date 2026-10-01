@@ -13,6 +13,63 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
+class _ChangeUsernameDialog extends StatefulWidget {
+  final String currentUsername;
+
+  const _ChangeUsernameDialog({required this.currentUsername});
+
+  @override
+  State<_ChangeUsernameDialog> createState() => _ChangeUsernameDialogState();
+}
+
+class _ChangeUsernameDialogState extends State<_ChangeUsernameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _controller = TextEditingController(text: widget.currentUsername);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final username = _controller.text.trim();
+
+    if (username.isEmpty) {
+      return;
+    }
+
+    Navigator.of(context).pop(username);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Change Username'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) => _submit(),
+        decoration: const InputDecoration(labelText: 'Username'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Batal'),
+        ),
+        FilledButton(onPressed: _submit, child: const Text('Simpan')),
+      ],
+    );
+  }
+}
+
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _isUploading = false;
   String _salesName = 'Sarah Jenkins';
@@ -141,8 +198,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   void initState() {
-    _loadSalesName();
     super.initState();
+    _loadSalesName();
     _loadUserProfile();
   }
 
@@ -220,42 +277,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _changeUsername() async {
-    final controller = TextEditingController(text: _username);
     final newUsername = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Change Username'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Username'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Batal'),
-          ),
-          FilledButton(
-            onPressed: () =>
-                Navigator.pop(dialogContext, controller.text.trim()),
-            child: const Text('Simpan'),
-          ),
-        ],
-      ),
+      builder: (_) => _ChangeUsernameDialog(currentUsername: _username),
     );
-    controller.dispose();
 
-    if (newUsername == null || newUsername.isEmpty || !mounted) return;
+    if (newUsername == null || newUsername.isEmpty || !mounted) {
+      return;
+    }
 
     try {
       await AuthService().changeUsername(newUsername);
+
       if (!mounted) return;
-      setState(() => _username = newUsername);
+
+      setState(() {
+        _username = newUsername;
+      });
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Username berhasil diperbarui.')),
       );
     } catch (e) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
       );

@@ -587,7 +587,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               value: _isCheckChecked,
               onChanged: (value) {
                 setState(() {
-                  _isCheckChecked = value ?? false;
+                  _isCheckChecked = value;
                 });
               },
             ),
@@ -596,7 +596,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               value: _isVisitChecked,
               onChanged: (value) {
                 setState(() {
-                  _isVisitChecked = value ?? false;
+                  _isVisitChecked = value;
                 });
               },
             ),
@@ -605,7 +605,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               value: _isStikerChecked,
               onChanged: (value) {
                 setState(() {
-                  _isStikerChecked = value ?? false;
+                  _isStikerChecked = value;
                 });
               },
             ),
@@ -614,7 +614,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               value: _isOrderChecked,
               onChanged: (value) {
                 setState(() {
-                  _isOrderChecked = value ?? false;
+                  _isOrderChecked = value;
                 });
               },
             ),
@@ -623,7 +623,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
               value: _isLainLainChecked,
               onChanged: (value) {
                 setState(() {
-                  _isLainLainChecked = value ?? false;
+                  _isLainLainChecked = value;
 
                   if (!_isLainLainChecked) {
                     _lainLainController.clear();
