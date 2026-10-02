@@ -10,6 +10,8 @@ class Partner {
   final double longitude;
   final String visitStatus;
   final String salesName;
+  final bool isMyClaim;
+  final int? storeVisitId;
 
   Partner({
     required this.partnerId,
@@ -23,6 +25,8 @@ class Partner {
     required this.longitude,
     this.visitStatus = 'IDLE',
     this.salesName = '',
+    this.isMyClaim = false,
+    this.storeVisitId,
   });
 
   static String _parseString(dynamic value) {
@@ -45,6 +49,16 @@ class Partner {
     return 0.0;
   }
 
+  static bool _parseBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is int) return value == 1;
+    if (value is String) {
+      final lowered = value.toLowerCase().trim();
+      return lowered == 'true' || lowered == '1';
+    }
+    return false;
+  }
+
   bool get isOccupied => const {
     'IN_VISIT',
     'ON_VISIT',
@@ -58,23 +72,35 @@ class Partner {
   factory Partner.fromJson(Map<String, dynamic> json) {
     String statusRaw = '';
     String salesNameRaw = '';
+    bool isMyClaimRaw = false;
+    int? storeVisitIdRaw;
 
     // Check claim_info
     if (json['claim_info'] != null && json['claim_info'] is Map) {
       final claimMap = json['claim_info'] as Map;
       statusRaw = _parseString(claimMap['status']);
       salesNameRaw = _parseString(
-        claimMap['sales_name'] ??
+        claimMap['claimed_by_name'] ??
+            claimMap['sales_name'] ??
             claimMap['user_name'] ??
             claimMap['name'] ??
-            claimMap['claimed_by_name'] ??
             claimMap['claimed_by'] ??
             claimMap['salesman'] ??
             claimMap['sales'],
       );
+      isMyClaimRaw = _parseBool(
+        claimMap['is_current_user'] ??
+            claimMap['is_my_claim'] ??
+            claimMap['is_claimed_by_me'] ??
+            claimMap['my_claim'],
+      );
+      if (claimMap['store_visit_id'] != null) {
+        storeVisitIdRaw = _parseInt(claimMap['store_visit_id']);
+        if (storeVisitIdRaw == 0) storeVisitIdRaw = null;
+      }
     }
 
-    // Fallback 
+    // Fallback
     if (statusRaw.isEmpty) {
       statusRaw = _parseString(json['visit_status'] ?? json['status']);
     }
@@ -86,6 +112,14 @@ class Partner {
             json['claimed_by'] ??
             json['salesman'] ??
             json['sales'],
+      );
+    }
+    if (!isMyClaimRaw) {
+      isMyClaimRaw = _parseBool(
+        json['is_current_user'] ??
+            json['is_my_claim'] ??
+            json['is_claimed_by_me'] ??
+            json['my_claim'],
       );
     }
 
@@ -106,6 +140,8 @@ class Partner {
       longitude: _parseDouble(json['longitude']),
       visitStatus: visitState,
       salesName: salesNameRaw,
+      isMyClaim: isMyClaimRaw,
+      storeVisitId: storeVisitIdRaw,
     );
   }
 
@@ -121,6 +157,8 @@ class Partner {
     double? longitude,
     String? visitStatus,
     String? salesName,
+    bool? isMyClaim,
+    int? storeVisitId,
   }) {
     return Partner(
       partnerId: partnerId ?? this.partnerId,
@@ -134,6 +172,8 @@ class Partner {
       longitude: longitude ?? this.longitude,
       visitStatus: visitStatus ?? this.visitStatus,
       salesName: salesName ?? this.salesName,
+      isMyClaim: isMyClaim ?? this.isMyClaim,
+      storeVisitId: storeVisitId ?? this.storeVisitId,
     );
   }
 }

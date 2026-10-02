@@ -123,28 +123,36 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   }
 
   Future<void> _startVisit(Partner partner) async {
-    if (_claimingPartnerId != null || partner.isOccupied) return;
+    final bool isCompleted =
+        partner.visitStatus == 'COMPLETED' || partner.visitStatus == 'SELESAI';
+    if (_claimingPartnerId != null || isCompleted) return;
+    if (partner.isOccupied && !partner.isMyClaim) return;
 
     setState(() => _claimingPartnerId = partner.partnerId);
 
     try {
-      final claimResult = await StoreVisitService().claimStore(
-        odooPartnerId: partner.partnerId,
-      );
+      String? visitId = partner.storeVisitId?.toString();
 
-      if (!mounted) return;
-
-      if (claimResult['success'] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(claimResult['message'] ?? 'Gagal klaim toko'),
-            backgroundColor: Colors.red,
-          ),
+      if (visitId == null || visitId.isEmpty) {
+        final claimResult = await StoreVisitService().claimStore(
+          odooPartnerId: partner.partnerId,
         );
-        return;
+
+        if (!mounted) return;
+
+        if (claimResult['success'] != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(claimResult['message'] ?? 'Gagal klaim toko'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
+        visitId = claimResult['visit_id']?.toString();
       }
 
-      final visitId = claimResult['visit_id']?.toString();
       if (visitId == null || visitId.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -161,7 +169,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
         context,
         MaterialPageRoute(
           builder: (_) =>
-              VisitFormPage(outletName: partner.partnerName, visitId: visitId),
+              VisitFormPage(outletName: partner.partnerName, visitId: visitId!),
         ),
       );
 
@@ -747,6 +755,12 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate((context, index) {
           final partner = _filteredPartners[index];
+          final bool isCompleted =
+              partner.visitStatus == 'COMPLETED' ||
+              partner.visitStatus == 'SELESAI';
+          final bool isBlockedForMe =
+              isCompleted || (partner.isOccupied && !partner.isMyClaim);
+
           return Padding(
             padding: const EdgeInsets.only(bottom: 12.0),
             child: PartnerCard(
@@ -758,7 +772,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                 partner.longitude,
               ),
               isClaiming: _claimingPartnerId == partner.partnerId,
-              onVisit: _claimingPartnerId == null
+              onVisit: (!isBlockedForMe && _claimingPartnerId == null)
                   ? () => _startVisit(partner)
                   : null,
             ),
@@ -1013,7 +1027,10 @@ class PartnerCard extends StatelessWidget {
       partner.visitStatus == 'CLAIMED' ||
       partner.visitStatus == 'IN_PROGRESS';
 
-  bool get _shouldFade => partner.isOccupied;
+  bool get _isMyActiveClaim => partner.isMyClaim && _isOnVisit && !_isCompleted;
+
+  bool get _shouldFade =>
+      _isCompleted || (partner.isOccupied && !partner.isMyClaim);
 
   Future<void> _openGoogleMaps(BuildContext context) async {
     if (partner.latitude == 0.0 && partner.longitude == 0.0) return;
@@ -1037,13 +1054,15 @@ class PartnerCard extends StatelessWidget {
     String buttonText = 'Kunjungi';
     if (_isCompleted) {
       buttonText = 'Tersedia Senin';
+    } else if (_isMyActiveClaim) {
+      buttonText = 'Selesaikan';
     } else if (partner.isOccupied) {
       buttonText = 'Sedang Dikunjungi';
     }
 
-    final nameDisplay = partner.salesName.isNotEmpty
-        ? partner.salesName
-        : 'Sales';
+    final String nameDisplay = partner.isMyClaim
+        ? 'Anda'
+        : (partner.salesName.isNotEmpty ? partner.salesName : 'Sales');
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -1147,6 +1166,39 @@ class PartnerCard extends StatelessWidget {
                         ),
                       ],
                     ),
+                    if (_isMyActiveClaim) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF003F87).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.pin_drop,
+                              size: 14,
+                              color: Color(0xFF003F87),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Sedang Kamu Kunjungi',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF003F87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -1231,11 +1283,13 @@ class PartnerCard extends StatelessWidget {
                               SizedBox(
                                 height: 40,
                                 child: ElevatedButton(
-                                  onPressed: partner.isOccupied || isClaiming
+                                  onPressed: _shouldFade || isClaiming
                                       ? null
                                       : onVisit,
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFF031636),
+                                    backgroundColor: _isMyActiveClaim
+                                        ? const Color(0xFF003F87)
+                                        : const Color(0xFF031636),
                                     disabledBackgroundColor: const Color(
                                       0xFFC5C6CF,
                                     ),
