@@ -471,7 +471,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.sales_app',
+                userAgentPackageName: 'id.co.fivafood.salesapp',
               ),
               MarkerLayer(
                 markers: [
