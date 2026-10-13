@@ -66,6 +66,6 @@ class StockProduct {
       return imageUrl!;
     }
 
-    return 'https://www.fivafood.co.id/web/image/product.product/17/image_512?unique=10e2976';
+    return '';
   }
 }
