@@ -246,10 +246,6 @@ class _VisitFormPageState extends State<VisitFormPage> {
     final stokPersen = _stokPersenController.text.trim();
     final stokPcs = _stokPcsController.text.trim();
 
-    if (stokPersen.isEmpty && stokPcs.isEmpty) {
-      return 'Isi sisa stok dalam persen atau pcs.';
-    }
-
     if (stokPersen.isNotEmpty) {
       final percentage = int.tryParse(stokPersen);
 
@@ -299,7 +295,7 @@ class _VisitFormPageState extends State<VisitFormPage> {
         sisaStokPersen: _stokPersenController.text.trim(),
         sisaStokPcs: _stokPcsController.text.trim(),
         catatan: _buildCatatan(),
-        aktivitas: _selectedAktivitas,
+        aktivitas: _selectedAktivitas, 
         photos: _selectedImages,
 
         latitude: position.latitude,
