@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,16 +11,20 @@ import '../models/contact_person.dart';
 class AuthService {
   Future<LoginResponse> login(String username, String password) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/login'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'username': username, 'password': password}),
-      );
+      final response = await http
+          .post(
+            Uri.parse('${ApiConfig.baseUrl}/login'),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 15));
 
-      final Map<String, dynamic> responseData = jsonDecode(response.body);
+      final Map<String, dynamic> responseData =
+          jsonDecode(response.body) as Map<String, dynamic>;
+
       final loginResponse = LoginResponse.fromJson(responseData);
 
       if (response.statusCode == 200 && loginResponse.token != null) {
@@ -26,10 +32,34 @@ class AuthService {
       }
 
       return loginResponse;
+    } on TimeoutException {
+      return LoginResponse(
+        success: false,
+        message:
+            'Login membutuhkan waktu terlalu lama. Periksa koneksi internet, lalu coba lagi.',
+      );
+    } on SocketException {
+      return LoginResponse(
+        success: false,
+        message:
+            'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.',
+      );
+    } on http.ClientException {
+      return LoginResponse(
+        success: false,
+        message:
+            'Koneksi ke server terputus. Periksa jaringan, lalu coba lagi.',
+      );
+    } on FormatException {
+      return LoginResponse(
+        success: false,
+        message:
+            'Respons server tidak dapat dibaca. Silakan coba lagi beberapa saat.',
+      );
     } catch (_) {
       return LoginResponse(
         success: false,
-        message: 'Koneksi gagal. Pastikan server backend aktif.',
+        message: 'Terjadi kesalahan saat login. Silakan coba lagi.',
       );
     }
   }
@@ -134,13 +164,15 @@ class AuthService {
       }
 
       final uri = Uri.parse('${ApiConfig.baseUrl}/user');
-      final response = await http.get(
-        uri,
-        headers: {
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-      );
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Accept': 'application/json',
+              'Authorization': 'Bearer $token',
+            },
+          )
+          .timeout(const Duration(seconds: 12));
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 

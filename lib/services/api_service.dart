@@ -8,10 +8,9 @@ class ApiService {
     try {
       final headers = await ApiConfig.getAuthHeaders();
 
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/retensi'),
-        headers: headers,
-      );
+      final response = await http
+          .get(Uri.parse('${ApiConfig.baseUrl}/retensi'), headers: headers)
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 200) {
         final dynamic decodedData = json.decode(response.body);

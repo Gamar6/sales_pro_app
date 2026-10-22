@@ -104,31 +104,43 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadActiveVisit() async {
-    final activeVisit = await _visitService.getActiveVisitDetails();
-    if (!mounted || activeVisit == null) return;
+    try {
+      final activeVisit = await _visitService.getActiveVisitDetails();
 
-    var outletName = activeVisit['outlet_name']?.toString();
-    if (outletName == null || outletName.isEmpty) {
-      final partnerId = int.tryParse(
-        activeVisit['odoo_partner_id']?.toString() ?? '',
-      );
-      if (partnerId != null) {
-        final partners = await _apiService.fetchPartners();
-        for (final partner in partners) {
-          if (partner.partnerId == partnerId) {
-            outletName = partner.partnerName;
-            break;
+      if (!mounted || activeVisit == null) return;
+
+      var outletName = activeVisit['outlet_name']?.toString();
+
+      if (outletName == null || outletName.isEmpty) {
+        final partnerId = int.tryParse(
+          activeVisit['odoo_partner_id']?.toString() ?? '',
+        );
+
+        if (partnerId != null) {
+          try {
+            final partners = await _apiService.fetchPartners();
+
+            for (final partner in partners) {
+              if (partner.partnerId == partnerId) {
+                outletName = partner.partnerName;
+                break;
+              }
+            }
+          } catch (e) {
+            debugPrint('Gagal memuat nama outlet: $e');
           }
         }
       }
+
+      if (!mounted || outletName == null || outletName.isEmpty) return;
+
+      setState(() {
+        _activeVisitId = activeVisit['visit_id']?.toString();
+        _activeOutletName = outletName;
+      });
+    } catch (e) {
+      debugPrint('Gagal memuat kunjungan aktif: $e');
     }
-
-    if (!mounted || outletName == null || outletName.isEmpty) return;
-
-    setState(() {
-      _activeVisitId = activeVisit['visit_id']?.toString();
-      _activeOutletName = outletName;
-    });
   }
 
   Future<void> _loadDashboardData() async {
