@@ -3,12 +3,61 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_config.dart';
 
 class StockService {
-  static Future<Map<String, dynamic>> fetchStocks() async {
+  static const String _cacheKey = 'stock_cache';
+
+  static Future<Map<String, dynamic>?> getCachedStocks() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final String? token = prefs.getString('token');
+      final raw = prefs.getString(_cacheKey);
+      if (raw == null || raw.isEmpty) return null;
 
-      if (token == null) {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map<String, dynamic>) return null;
+
+      return decoded;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> saveCachedStocks(Map<String, dynamic> payload) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_cacheKey, jsonEncode(payload));
+    } catch (_) {}
+  }
+
+  static Future<Map<String, dynamic>> fetchStocks({
+    bool forceRefresh = false,
+  }) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+
+      final cached = await getCachedStocks();
+      if (!forceRefresh && cached != null) {
+        return {
+          'success': true,
+          'cached': true,
+          'total_skus': cached['total_skus'] ?? 0,
+          'low_stock_count': cached['low_stock_count'] ?? 0,
+          'data': cached['data'] ?? [],
+          'message': 'Menampilkan data offline / sinyal lemah',
+        };
+      }
+
+      if (token == null || token.isEmpty) {
+        if (cached != null) {
+          return {
+            'success': true,
+            'cached': true,
+            'total_skus': cached['total_skus'] ?? 0,
+            'low_stock_count': cached['low_stock_count'] ?? 0,
+            'data': cached['data'] ?? [],
+            'message': 'Menampilkan data offline / sinyal lemah',
+          };
+        }
+
         return {
           'success': false,
           'message': 'Sesi login telah berakhir. Silakan login kembali.',
@@ -25,26 +74,61 @@ class StockService {
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> body = jsonDecode(response.body);
-        return {
+        final body = jsonDecode(response.body) as Map<String, dynamic>;
+        final payload = {
           'success': true,
           'total_skus': body['total_skus'] ?? 0,
           'low_stock_count': body['low_stock_count'] ?? 0,
           'data': body['data'] ?? [],
         };
-      } else if (response.statusCode == 401) {
+
+        await saveCachedStocks(payload);
+
+        return {
+          'success': true,
+          'cached': false,
+          'total_skus': payload['total_skus'],
+          'low_stock_count': payload['low_stock_count'],
+          'data': payload['data'],
+        };
+      }
+
+      final fallback = await getCachedStocks();
+      if (fallback != null) {
+        return {
+          'success': true,
+          'cached': true,
+          'total_skus': fallback['total_skus'] ?? 0,
+          'low_stock_count': fallback['low_stock_count'] ?? 0,
+          'data': fallback['data'] ?? [],
+          'message': 'Menampilkan data offline.',
+        };
+      }
+
+      if (response.statusCode == 401) {
         return {
           'success': false,
           'message': 'Akses ditolak (401). Silakan login ulang.',
         };
-      } else {
+      }
+
+      return {
+        'success': false,
+        'message': 'Gagal mengambil data stok (Status: ${response.statusCode})',
+      };
+    } catch (_) {
+      final fallback = await getCachedStocks();
+      if (fallback != null) {
         return {
-          'success': false,
-          'message':
-              'Gagal mengambil data stok (Status: ${response.statusCode})',
+          'success': true,
+          'cached': true,
+          'total_skus': fallback['total_skus'] ?? 0,
+          'low_stock_count': fallback['low_stock_count'] ?? 0,
+          'data': fallback['data'] ?? [],
+          'message': 'Menampilkan data offline.',
         };
       }
-    } catch (e) {
+
       return {
         'success': false,
         'message': 'Tidak dapat terhubung ke server backend.',

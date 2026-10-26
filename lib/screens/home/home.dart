@@ -46,10 +46,18 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadSalesName();
-    _loadUserProfile();
-    _loadActiveVisit();
-    _loadDashboardData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bootstrapHomeData();
+    });
+  }
+
+  Future<void> _bootstrapHomeData() async {
+    await Future.wait([
+      _loadSalesName(),
+      _loadUserProfile(),
+      _loadActiveVisit(),
+      _loadDashboardData(),
+    ], eagerError: false);
   }
 
   void _handleNavigationTap(int index) {
@@ -246,6 +254,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildDashboardSkeleton() {
+    return Column(
+      children: [
+        Container(
+          height: 120,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 44,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _getPagesBody() {
     switch (_currentIndex) {
       case 0:
@@ -331,9 +369,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDashboardContent(BuildContext context) {
-    if (_isLoadingDashboard) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF003F87)),
+    if (_isLoadingDashboard && _recentVisits.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(children: [_buildDashboardSkeleton()]),
       );
     }
 

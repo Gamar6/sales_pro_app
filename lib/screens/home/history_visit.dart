@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/visit_service.dart';
+import '../../widgets/async_state_widgets.dart';
 import './detail_kunjungan_page.dart';
 
 class VisitHistoryPage extends StatefulWidget {
@@ -245,8 +246,12 @@ class _VisitHistoryPageState extends State<VisitHistoryPage> {
             // Visit List Dinamis
             if (_isLoading)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 40.0),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: 24.0),
+                child: AppPageSkeleton(
+                  itemCount: 4,
+                  itemHeight: 88,
+                  spacing: 10,
+                ),
               )
             else if (_filteredVisits.isEmpty)
               const Padding(

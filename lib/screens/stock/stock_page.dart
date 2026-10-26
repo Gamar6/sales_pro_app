@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/stock_model.dart';
 import '../../services/stock_service.dart';
+import '../../widgets/async_state_widgets.dart';
 
 class StockPage extends StatefulWidget {
   const StockPage({super.key});
@@ -83,17 +84,16 @@ class _StockPageState extends State<StockPage> {
       if (!mounted) return;
 
       if (result['success'] == true) {
-        final products = (result['data'] as List)
+        final dataList = result['data'] as List? ?? const [];
+        final products = dataList
             .map((item) => StockProduct.fromJson(item))
             .toList();
 
         setState(() {
           _products = products;
-          _totalSkus = result['total_skus'] ?? 0;
+          _totalSkus = result['total_skus'] ?? dataList.length;
           _lowStockCount = result['low_stock_count'] ?? 0;
           _isLoading = false;
-
-          // Tutup detail ketika data di-refresh.
           _expandedProductId = null;
         });
       } else {
@@ -101,13 +101,15 @@ class _StockPageState extends State<StockPage> {
           _isLoading = false;
         });
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(result['message'] ?? 'Gagal memuat data stok'),
-            backgroundColor: Colors.red.shade700,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result['message'] ?? 'Gagal memuat data stok'),
+              backgroundColor: Colors.red.shade700,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -116,13 +118,15 @@ class _StockPageState extends State<StockPage> {
         _isLoading = false;
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Terjadi kesalahan saat memuat data stok.'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Terjadi kesalahan saat memuat data stok.'),
+            backgroundColor: Colors.red.shade700,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -320,6 +324,13 @@ class _StockPageState extends State<StockPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  if (_isLoading && _products.isEmpty)
+                    const AppOfflineBanner(message: 'Memuat data stok...')
+                  else if (!_isLoading && _products.isNotEmpty && _lowStockCount > 0)
+                    const AppOfflineBanner(message: 'Menampilkan data offline / sinyal lemah')
+                  else if (!_isLoading && _products.isNotEmpty && _lowStockCount == 0)
+                    const AppOfflineBanner(message: 'Data stok diperbarui, koneksi dapat terganggu'),
+
                   // SEARCH
                   TextField(
                     controller: _searchController,
@@ -444,8 +455,12 @@ class _StockPageState extends State<StockPage> {
                   // INVENTORY LIST
                   _isLoading
                       ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 60),
-                          child: Center(child: CircularProgressIndicator()),
+                          padding: EdgeInsets.symmetric(vertical: 32),
+                          child: AppPageSkeleton(
+                            itemCount: 4,
+                            itemHeight: 108,
+                            spacing: 12,
+                          ),
                         )
                       : displayList.isEmpty
                       ? const Padding(
