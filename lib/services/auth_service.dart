@@ -97,7 +97,7 @@ class AuthService {
         throw Exception('Sesi berakhir, silakan login kembali.');
       }
 
-      final response = await ApiConfig.post(
+      final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/change-password'),
         headers: {
           'Content-Type': 'application/json',
@@ -132,7 +132,7 @@ class AuthService {
         throw Exception('Sesi berakhir, silakan login kembali.');
       }
 
-      final response = await ApiConfig.put(
+      final response = await http.put(
         Uri.parse('${ApiConfig.baseUrl}/user/username'),
         headers: {
           'Content-Type': 'application/json',
@@ -206,7 +206,8 @@ class AuthService {
         http.MultipartFile.fromBytes('photo', bytes, filename: imageFile.name),
       );
 
-      final response = await ApiConfig.sendMultipart(request);
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -224,7 +225,7 @@ class AuthService {
 
   Future<String> forgotPassword(String email) async {
     try {
-      final response = await ApiConfig.post(
+      final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/forgot-password'),
         headers: {
           'Content-Type': 'application/json',
@@ -261,7 +262,7 @@ class AuthService {
     required String passwordConfirmation,
   }) async {
     try {
-      final response = await ApiConfig.post(
+      final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/reset-password'),
         headers: {
           'Content-Type': 'application/json',
@@ -291,7 +292,7 @@ class AuthService {
 
   Future<List<ContactPerson>> getContactPersons() async {
     try {
-      final response = await ApiConfig.get(
+      final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/contact-persons'),
         headers: {'Accept': 'application/json'},
       );

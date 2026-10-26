@@ -10,7 +10,7 @@ class StoreVisitService {
     try {
       final headers = await ApiConfig.getAuthHeaders();
 
-      final response = await ApiConfig.post(
+      final response = await http.post(
         Uri.parse('${ApiConfig.baseUrl}/store-visits/claim'),
         headers: headers,
         body: jsonEncode({'odoo_partner_id': odooPartnerId}),
@@ -79,7 +79,9 @@ class StoreVisitService {
         );
       }
 
-      final response = await ApiConfig.sendMultipart(request);
+      final streamedResponse = await request.send();
+
+      final response = await http.Response.fromStream(streamedResponse);
 
       final data = _decodeResponse(response);
 
