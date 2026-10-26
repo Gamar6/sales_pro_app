@@ -31,6 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
+    if (_isLoading) return;
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
@@ -239,8 +240,8 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Container(
           padding: const EdgeInsets.all(24.0),
-          child: Image.network(
-            'https://lh3.googleusercontent.com/aida-public/AB6AXuDVL1FWR1T7UMskMT3iHZNh_FyZpE_uIV4b-DHR7obP1SrUgtCpeVdWDwFhRh1p_AAK-qwmVbSrD5T2BTnZnSjRR5EtX4TrdNMoek5PxjKoiSkjNTwoPiB5OXCjudcKo2DVT1b-PHWNLcHJzPb6iorYYk7zMdjd7Hbd07waNfL-m12fD5qSIsh8E1VfvMmK6OYg9RzqfES-6u2xE16mt7TGYGC8eKSRO5aWYUBsyxQMNyJQCrrj0y6M4AcNrbthyno2eQ',
+          child: Image.asset(
+            'assets/images/logo.png',
             height: 240,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) =>

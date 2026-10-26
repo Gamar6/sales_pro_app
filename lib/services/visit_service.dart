@@ -7,10 +7,12 @@ class VisitService {
   Future<Map<String, dynamic>?> getActiveVisitDetails() async {
     try {
       final headers = await ApiConfig.getAuthHeaders();
-      final response = await ApiConfig.get(
-        Uri.parse('${ApiConfig.baseUrl}/visits/active'),
-        headers: headers,
-      );
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/visits/active'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode != 200) return null;
 
@@ -140,10 +142,12 @@ class VisitService {
   Future<List<dynamic>> getVisitHistory() async {
     try {
       final headers = await ApiConfig.getAuthHeaders();
-      final response = await ApiConfig.get(
-        Uri.parse('${ApiConfig.baseUrl}/store-visits/history'),
-        headers: headers,
-      );
+      final response = await http
+          .get(
+            Uri.parse('${ApiConfig.baseUrl}/store-visits/history'),
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode != 200) return [];
 
