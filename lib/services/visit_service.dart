@@ -98,8 +98,7 @@ class VisitService {
       );
     }
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await ApiConfig.sendMultipart(request);
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(_extractErrorMessage(response));
@@ -130,7 +129,7 @@ class VisitService {
 
   Future<void> cancelVisit(String visitId) async {
     final headers = await ApiConfig.getAuthHeaders();
-    final response = await http.post(
+    final response = await ApiConfig.post(
       Uri.parse('${ApiConfig.baseUrl}/store-visits/$visitId/cancel'),
       headers: headers,
     );

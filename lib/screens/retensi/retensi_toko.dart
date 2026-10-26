@@ -32,6 +32,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   Position? _currentPosition;
   bool _isLoading = true;
   String _errorMessage = '';
+  bool _isShowingCachedData = false;
 
   final TextEditingController _searchController = TextEditingController();
   Timer? _searchDebounce;
@@ -61,56 +62,93 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 
   Future<void> _loadPartnersData() async {
     setState(() {
-      _isLoading = true;
+      _isLoading = _partners.isEmpty;
       _errorMessage = '';
     });
 
+    List<Partner>? cachedPartners;
     try {
-      final positionFuture = _locationService.getCurrentLocation().catchError(
-        (_) => null,
-      );
-      final partnersFuture = _apiService.fetchPartners();
-      final results = await Future.wait<Object?>([
-        positionFuture,
-        partnersFuture,
-      ]);
+      cachedPartners = await _apiService.getCachedPartners();
+    } catch (error) {
+      debugPrint('Gagal membaca cache daftar toko: $error');
+    }
 
-      final position = results[0] as Position?;
-      final partners = results[1] as List<Partner>;
+    if (!mounted) return;
+    if (_partners.isEmpty && cachedPartners != null) {
+      _updatePartners(cachedPartners, isCached: true);
+    }
 
-      final cities = [
-        'Semua',
-        ...partners.map((e) => e.kota).where((c) => c.isNotEmpty).toSet(),
-      ];
+    unawaited(_loadCurrentPosition());
 
+    try {
+      final partners = await _apiService.fetchPartners();
       if (!mounted) return;
-      setState(() {
-        _currentPosition = position;
-        _partners = partners;
-        _filteredPartners = partners;
-        _availableCities = cities;
-        _isLoading = false;
-      });
-
-      if (_currentPosition != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _mapController.move(
-            latlong.LatLng(
-              _currentPosition!.latitude,
-              _currentPosition!.longitude,
-            ),
-            _currentZoom,
-          );
-        });
-      }
-
-      _applyFilterAndSort();
+      _updatePartners(partners, isCached: false);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
         _isLoading = false;
+        if (_partners.isNotEmpty) {
+          _isShowingCachedData = true;
+        } else {
+          _errorMessage =
+              'Tidak dapat memuat daftar toko. Periksa koneksi lalu coba lagi.';
+        }
       });
+    }
+  }
+
+  void _updatePartners(List<Partner> partners, {required bool isCached}) {
+    final cities = [
+      'Semua',
+      ...partners
+          .map((partner) => partner.kota)
+          .where((city) => city.isNotEmpty)
+          .toSet(),
+    ];
+
+    setState(() {
+      _partners = partners;
+      _filteredPartners = partners;
+      _availableCities = cities;
+      _isLoading = false;
+      _errorMessage = '';
+      _isShowingCachedData = isCached;
+    });
+    _applyFilterAndSort();
+
+    final position = _currentPosition;
+    if (position != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.move(
+          latlong.LatLng(position.latitude, position.longitude),
+          _currentZoom,
+        );
+      });
+    }
+  }
+
+  Future<void> _loadCurrentPosition() async {
+    try {
+      final position = await _locationService.getCurrentLocation().timeout(
+        const Duration(seconds: 8),
+      );
+      if (!mounted || position == null) return;
+
+      setState(() => _currentPosition = position);
+      if (_partners.isNotEmpty) _applyFilterAndSort();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.move(
+          latlong.LatLng(position.latitude, position.longitude),
+          _currentZoom,
+        );
+      });
+    } on TimeoutException {
+      return;
+    } catch (error) {
+      debugPrint('Gagal mendapatkan lokasi saat memuat toko: $error');
     }
   }
 
@@ -394,6 +432,29 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverToBoxAdapter(child: _buildMapHeader()),
+            if (_isShowingCachedData)
+              SliverToBoxAdapter(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFF4D6),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    children: [
+                      Icon(Icons.wifi_off, color: Color(0xFF8A5A00), size: 18),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Menampilkan data tersimpan. Sinyal lemah atau tidak ada koneksi.',
+                          style: TextStyle(color: Color(0xFF704900)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -703,10 +764,52 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
 
   Widget _buildSliverContentArea() {
     if (_isLoading) {
-      return const SliverFillRemaining(
-        child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Center(child: CircularProgressIndicator()),
+      return SliverPadding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => Container(
+              height: 132,
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 180,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE8EAF0),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 240,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F1F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    width: 110,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF0F1F5),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            childCount: 3,
+          ),
         ),
       );
     }

@@ -1,11 +1,10 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import '../models/store_model.dart';
 import './api_config.dart';
 
 class ApiService {
   Future<List<StoreModel>> fetchStores() async {
-    final response = await http.get(
+    final response = await ApiConfig.get(
       Uri.parse('${ApiConfig.baseUrl}/retensi'),
       headers: {
         'Content-Type': 'application/json',
