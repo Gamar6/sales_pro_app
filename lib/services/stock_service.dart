@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/api_config.dart';
 
@@ -64,12 +65,13 @@ class StockService {
         };
       }
 
-      final response = await ApiConfig.get(
+      final response = await http.get(
         Uri.parse('${ApiConfig.baseUrl}/stocks'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
+          'Authorization':
+              'Bearer $token',
         },
       );
 
