@@ -145,6 +145,24 @@ class Partner {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'partner_id': partnerId,
+      'partner_name': partnerName,
+      'kota': kota,
+      'days_since': daysSince,
+      'retensi_status': retensiStatus,
+      'aktif_group': aktifGroup,
+      'alamat': alamat,
+      'latitude': latitude,
+      'longitude': longitude,
+      'visit_status': visitStatus,
+      'sales_name': salesName,
+      'is_my_claim': isMyClaim,
+      'store_visit_id': storeVisitId,
+    };
+  }
+
   Partner copyWith({
     int? partnerId,
     String? partnerName,

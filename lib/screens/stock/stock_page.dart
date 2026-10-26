@@ -21,7 +21,9 @@ class _StockPageState extends State<StockPage> {
 
   // API / DATA STATE
 
-  bool _isLoading = true;
+  bool _isLoading = false;
+  bool _isCachedData = false;
+  String? _loadError;
   int _totalSkus = 0;
   int _lowStockCount = 0;
   List<StockProduct> _products = [];
@@ -72,62 +74,57 @@ class _StockPageState extends State<StockPage> {
   // FETCH STOCK DATA
 
   Future<void> _fetchStockData() async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
+    if (_isLoading) return;
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
 
     try {
-      final result = await StockService.fetchStocks();
+      if (_products.isEmpty) {
+        final cached = await StockService.getCachedStocks();
+        if (mounted && cached != null) {
+          _applyStockData(cached, isCached: true);
+        }
+      }
 
+      final result = await StockService.fetchStocks();
       if (!mounted) return;
 
       if (result['success'] == true) {
         final dataList = result['data'] as List? ?? const [];
-        final products = dataList
-            .map((item) => StockProduct.fromJson(item))
-            .toList();
-
-        setState(() {
-          _products = products;
-          _totalSkus = result['total_skus'] ?? dataList.length;
-          _lowStockCount = result['low_stock_count'] ?? 0;
-          _isLoading = false;
-          _expandedProductId = null;
-        });
-      } else {
-        setState(() {
-          _isLoading = false;
-        });
-
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result['message'] ?? 'Gagal memuat data stok'),
-              backgroundColor: Colors.red.shade700,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+        _applyStockData(
+          result,
+          isCached: result['cached'] == true,
+          fallbackTotal: dataList.length,
+        );
+        if (result['cached'] == true) {
+          _loadError = result['message']?.toString();
         }
+      } else {
+        _loadError = result['message']?.toString() ?? 'Gagal memuat data stok.';
       }
     } catch (e) {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Terjadi kesalahan saat memuat data stok.'),
-            backgroundColor: Colors.red.shade700,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
+      _loadError = 'Tidak dapat memuat data stok. Coba lagi.';
+      debugPrint('Gagal mengambil data stok: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  void _applyStockData(
+    Map<String, dynamic> stockData, {
+    required bool isCached,
+    int fallbackTotal = 0,
+  }) {
+    final dataList = stockData['data'] as List? ?? const [];
+    setState(() {
+      _products = dataList.map((item) => StockProduct.fromJson(item)).toList();
+      _totalSkus = stockData['total_skus'] ?? fallbackTotal;
+      _lowStockCount = stockData['low_stock_count'] ?? 0;
+      _isCachedData = isCached;
+      _expandedProductId = null;
+    });
   }
 
   // SEARCH + SORT
@@ -296,8 +293,6 @@ class _StockPageState extends State<StockPage> {
 
     return Scaffold(
       backgroundColor: brandSurface,
-
-      // APP BAR
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 1,
@@ -311,183 +306,199 @@ class _StockPageState extends State<StockPage> {
           ),
         ),
       ),
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _fetchStockData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1200),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (_isCachedData)
+                      AppOfflineBanner(
+                        message: _isLoading
+                            ? 'Menampilkan cache stok sambil memperbarui data'
+                            : _loadError ??
+                                  'Menampilkan data offline / sinyal lemah',
+                        onRetry: _fetchStockData,
+                        isRetrying: _isLoading,
+                      ),
 
-      // BODY
-      body: RefreshIndicator(
-        onRefresh: _fetchStockData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1200),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (_isLoading && _products.isEmpty)
-                    const AppOfflineBanner(message: 'Memuat data stok...')
-                  else if (!_isLoading && _products.isNotEmpty && _lowStockCount > 0)
-                    const AppOfflineBanner(message: 'Menampilkan data offline / sinyal lemah')
-                  else if (!_isLoading && _products.isNotEmpty && _lowStockCount == 0)
-                    const AppOfflineBanner(message: 'Data stok diperbarui, koneksi dapat terganggu'),
-
-                  // SEARCH
-                  TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      hintText: 'Cari produk...',
-                      hintStyle: const TextStyle(
-                        fontSize: 14,
-                        color: Color(0xFF75777F),
-                      ),
-                      prefixIcon: const Icon(Icons.search, color: brandPrimary),
-                      suffixIcon: _searchQuery.isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(Icons.clear, size: 20),
-                              onPressed: () {
-                                _searchController.clear();
-
-                                setState(() {
-                                  _searchQuery = '';
-                                  _expandedProductId = null;
-                                });
-                              },
-                            )
-                          : null,
-                      filled: true,
-                      fillColor: Colors.white,
-                      contentPadding: const EdgeInsets.symmetric(
-                        vertical: 12,
-                        horizontal: 16,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: brandOutline),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: brandOutline),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(
-                          color: brandPrimary,
-                          width: 2,
+                    TextField(
+                      controller: _searchController,
+                      decoration: InputDecoration(
+                        hintText: 'Cari produk...',
+                        hintStyle: const TextStyle(
+                          fontSize: 14,
+                          color: Color(0xFF75777F),
                         ),
-                      ),
-                    ),
-                    onChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                        _expandedProductId = null;
-                      });
-                    },
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // SUMMARY STATS
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSummaryCard(
-                          title: 'TOTAL SKUS',
-                          value: _isLoading ? '...' : '$_totalSkus',
-                          valueColor: brandPrimary,
-                        ),
-                      ),
-
-                      const SizedBox(width: 12),
-
-                      Expanded(
-                        child: _buildSummaryCard(
-                          title: 'LOW STOCK',
-                          value: _isLoading ? '...' : '$_lowStockCount',
-                          valueColor: const Color(0xFFCD8300),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // SORTING
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: brandOutline),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedSort,
-                        isExpanded: true,
-                        icon: const Icon(
-                          Icons.sort,
-                          size: 18,
+                        prefixIcon: const Icon(
+                          Icons.search,
                           color: brandPrimary,
                         ),
-                        items: _sortOptions.map((String option) {
-                          return DropdownMenuItem<String>(
-                            value: option,
-                            child: Text(
-                              option,
-                              style: const TextStyle(fontSize: 13),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue == null) return;
-
-                          setState(() {
-                            _selectedSort = newValue;
-                            _expandedProductId = null;
-                          });
-                        },
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 20),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() {
+                                    _searchQuery = '';
+                                    _expandedProductId = null;
+                                  });
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.white,
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 12,
+                          horizontal: 16,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: brandOutline),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: brandOutline),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(
+                            color: brandPrimary,
+                            width: 2,
+                          ),
+                        ),
                       ),
+                      onChanged: (value) {
+                        setState(() {
+                          _searchQuery = value;
+                          _expandedProductId = null;
+                        });
+                      },
                     ),
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // INVENTORY LIST
-                  _isLoading
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 32),
-                          child: AppPageSkeleton(
-                            itemCount: 4,
-                            itemHeight: 108,
-                            spacing: 12,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildSummaryCard(
+                            title: 'TOTAL SKUS',
+                            value: _isLoading && _products.isEmpty
+                                ? '...'
+                                : '$_totalSkus',
+                            valueColor: brandPrimary,
                           ),
-                        )
-                      : displayList.isEmpty
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 60),
-                          child: Center(
-                            child: Text(
-                              'Produk tidak ditemukan.',
-                              style: TextStyle(color: Color(0xFF75777F)),
-                            ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _buildSummaryCard(
+                            title: 'LOW STOCK',
+                            value: _isLoading && _products.isEmpty
+                                ? '...'
+                                : '$_lowStockCount',
+                            valueColor: const Color(0xFFCD8300),
                           ),
-                        )
-                      : ListView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: displayList.length,
-                          itemBuilder: (context, index) {
-                            final product = displayList[index];
+                        ),
+                      ],
+                    ),
 
-                            final isExpanded = _expandedProductId == product.id;
+                    const SizedBox(height: 16),
 
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 10),
-                              child: _buildProductListItem(product, isExpanded),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        border: Border.all(color: brandOutline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _selectedSort,
+                          isExpanded: true,
+                          icon: const Icon(
+                            Icons.sort,
+                            size: 18,
+                            color: brandPrimary,
+                          ),
+                          items: _sortOptions.map((String option) {
+                            return DropdownMenuItem<String>(
+                              value: option,
+                              child: Text(
+                                option,
+                                style: const TextStyle(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            if (newValue == null) return;
+                            setState(() {
+                              _selectedSort = newValue;
+                              _expandedProductId = null;
+                            });
                           },
                         ),
-                ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    _isLoading && _products.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: AppPageSkeleton(
+                              itemCount: 4,
+                              itemHeight: 108,
+                              spacing: 12,
+                            ),
+                          )
+                        : _loadError != null && _products.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 40),
+                            child: AppErrorState(
+                              title: 'Gagal memuat data stok',
+                              message: _loadError!,
+                              onRetry: _fetchStockData,
+                            ),
+                          )
+                        : displayList.isEmpty
+                        ? const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 60),
+                            child: Center(
+                              child: Text(
+                                'Produk tidak ditemukan.',
+                                style: TextStyle(color: Color(0xFF75777F)),
+                              ),
+                            ),
+                          )
+                        : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: displayList.length,
+                            itemBuilder: (context, index) {
+                              final product = displayList[index];
+                              final isExpanded =
+                                  _expandedProductId == product.id;
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 10),
+                                child: _buildProductListItem(
+                                  product,
+                                  isExpanded,
+                                ),
+                              );
+                            },
+                          ),
+
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
           ),
@@ -569,7 +580,7 @@ class _StockPageState extends State<StockPage> {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
-            children:[
+            children: [
               // MAIN PRODUCT ROW
               Padding(
                 padding: const EdgeInsets.all(12),
@@ -739,9 +750,8 @@ class _StockPageState extends State<StockPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-  
           // DIVIDER
-  
+
           Divider(
             height: 1,
             thickness: 1,
@@ -750,9 +760,7 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-  
           // HEADER DETAIL
-  
           Row(
             children: [
               Container(
@@ -792,9 +800,7 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-  
           // DETAIL GRID
-  
           Row(
             children: [
               Expanded(
@@ -843,9 +849,7 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 10),
 
-  
           // LOCATION
-  
           _buildDetailItem(
             icon: Icons.location_on_outlined,
             label: 'Lokasi',
@@ -854,9 +858,7 @@ class _StockPageState extends State<StockPage> {
 
           const SizedBox(height: 14),
 
-  
           // PACKAGING INFO
-  
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),

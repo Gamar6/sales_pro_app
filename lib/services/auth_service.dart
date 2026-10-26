@@ -11,16 +11,17 @@ import '../models/contact_person.dart';
 class AuthService {
   Future<LoginResponse> login(String username, String password) async {
     try {
-      final response = await http
-          .post(
-            Uri.parse('${ApiConfig.baseUrl}/login'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: jsonEncode({'username': username, 'password': password}),
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await ApiConfig.withClient(
+        (client) => client.post(
+          Uri.parse('${ApiConfig.baseUrl}/login'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({'username': username, 'password': password}),
+        ),
+        timeout: const Duration(seconds: 15),
+      );
 
       final Map<String, dynamic> responseData =
           jsonDecode(response.body) as Map<String, dynamic>;
@@ -97,17 +98,20 @@ class AuthService {
         throw Exception('Sesi berakhir, silakan login kembali.');
       }
 
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/change-password'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({
-          'current_password': currentPassword,
-          'new_password': newPassword,
-        }),
+      final response = await ApiConfig.withClient(
+        (client) => client.post(
+          Uri.parse('${ApiConfig.baseUrl}/change-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({
+            'current_password': currentPassword,
+            'new_password': newPassword,
+          }),
+        ),
+        timeout: ApiConfig.requestTimeout,
       );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -132,14 +136,17 @@ class AuthService {
         throw Exception('Sesi berakhir, silakan login kembali.');
       }
 
-      final response = await http.put(
-        Uri.parse('${ApiConfig.baseUrl}/user/username'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: jsonEncode({'username': username}),
+      final response = await ApiConfig.withClient(
+        (client) => client.put(
+          Uri.parse('${ApiConfig.baseUrl}/user/username'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: jsonEncode({'username': username}),
+        ),
+        timeout: ApiConfig.requestTimeout,
       );
       final responseData = jsonDecode(response.body);
 
@@ -164,15 +171,16 @@ class AuthService {
       }
 
       final uri = Uri.parse('${ApiConfig.baseUrl}/user');
-      final response = await http
-          .get(
-            uri,
-            headers: {
-              'Accept': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await ApiConfig.withClient(
+        (client) => client.get(
+          uri,
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+        ),
+        timeout: ApiConfig.requestTimeout,
+      );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
@@ -206,8 +214,10 @@ class AuthService {
         http.MultipartFile.fromBytes('photo', bytes, filename: imageFile.name),
       );
 
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
+      final response = await ApiConfig.send(
+        request,
+        timeout: ApiConfig.uploadTimeout,
+      );
       final Map<String, dynamic> responseData = jsonDecode(response.body);
 
       if (response.statusCode == 200) {
@@ -225,13 +235,16 @@ class AuthService {
 
   Future<String> forgotPassword(String email) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/forgot-password'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({'email': email}),
+      final response = await ApiConfig.withClient(
+        (client) => client.post(
+          Uri.parse('${ApiConfig.baseUrl}/forgot-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({'email': email}),
+        ),
+        timeout: ApiConfig.requestTimeout,
       );
 
       Map<String, dynamic> responseData = {};
@@ -262,18 +275,21 @@ class AuthService {
     required String passwordConfirmation,
   }) async {
     try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/reset-password'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: jsonEncode({
-          'email': email,
-          'token': token,
-          'password': password,
-          'password_confirmation': passwordConfirmation,
-        }),
+      final response = await ApiConfig.withClient(
+        (client) => client.post(
+          Uri.parse('${ApiConfig.baseUrl}/reset-password'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: jsonEncode({
+            'email': email,
+            'token': token,
+            'password': password,
+            'password_confirmation': passwordConfirmation,
+          }),
+        ),
+        timeout: ApiConfig.requestTimeout,
       );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);
@@ -292,9 +308,12 @@ class AuthService {
 
   Future<List<ContactPerson>> getContactPersons() async {
     try {
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/contact-persons'),
-        headers: {'Accept': 'application/json'},
+      final response = await ApiConfig.withClient(
+        (client) => client.get(
+          Uri.parse('${ApiConfig.baseUrl}/contact-persons'),
+          headers: {'Accept': 'application/json'},
+        ),
+        timeout: ApiConfig.requestTimeout,
       );
 
       final Map<String, dynamic> responseData = jsonDecode(response.body);

@@ -2,10 +2,14 @@ import 'package:flutter/material.dart';
 
 class AppOfflineBanner extends StatelessWidget {
   final String message;
+  final VoidCallback? onRetry;
+  final bool isRetrying;
 
   const AppOfflineBanner({
     super.key,
     this.message = 'Menampilkan data offline / sinyal lemah',
+    this.onRetry,
+    this.isRetrying = false,
   });
 
   @override
@@ -28,6 +32,25 @@ class AppOfflineBanner extends StatelessWidget {
               style: const TextStyle(fontSize: 12, color: Color(0xFF8A5A00)),
             ),
           ),
+          if (onRetry != null) ...[
+            const SizedBox(width: 4),
+            TextButton(
+              onPressed: isRetrying ? null : onRetry,
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF8A5A00),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: isRetrying
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Coba Lagi'),
+            ),
+          ],
         ],
       ),
     );
@@ -53,7 +76,9 @@ class AppPageSkeleton extends StatelessWidget {
     return Column(
       children: List.generate(itemCount, (index) {
         return Padding(
-          padding: EdgeInsets.only(bottom: index == itemCount - 1 ? 0 : spacing),
+          padding: EdgeInsets.only(
+            bottom: index == itemCount - 1 ? 0 : spacing,
+          ),
           child: Container(
             width: itemWidth,
             height: itemHeight,
@@ -95,7 +120,11 @@ class AppErrorState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.signal_wifi_connected_no_internet_4, color: Color(0xFFB3261E), size: 36),
+          const Icon(
+            Icons.signal_wifi_connected_no_internet_4,
+            color: Color(0xFFB3261E),
+            size: 36,
+          ),
           const SizedBox(height: 12),
           Text(
             title,

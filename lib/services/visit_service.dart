@@ -1,18 +1,20 @@
 import 'dart:convert'; // Impor untuk jsonDecode
+import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
 import '../models/visit_model.dart';
 
 class VisitService {
+  static const String _historyCacheKeyPrefix = 'visit_history_cache';
+
   Future<Map<String, dynamic>?> getActiveVisitDetails() async {
     try {
       final headers = await ApiConfig.getAuthHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/visits/active'),
-            headers: headers,
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await ApiConfig.get(
+        Uri.parse('${ApiConfig.baseUrl}/visits/active'),
+        headers: headers,
+      );
 
       if (response.statusCode != 200) return null;
 
@@ -98,8 +100,10 @@ class VisitService {
       );
     }
 
-    final streamedResponse = await request.send();
-    final response = await http.Response.fromStream(streamedResponse);
+    final response = await ApiConfig.send(
+      request,
+      timeout: ApiConfig.uploadTimeout,
+    );
 
     if (response.statusCode != 200 && response.statusCode != 201) {
       throw Exception(_extractErrorMessage(response));
@@ -130,7 +134,7 @@ class VisitService {
 
   Future<void> cancelVisit(String visitId) async {
     final headers = await ApiConfig.getAuthHeaders();
-    final response = await http.post(
+    final response = await ApiConfig.post(
       Uri.parse('${ApiConfig.baseUrl}/store-visits/$visitId/cancel'),
       headers: headers,
     );
@@ -140,32 +144,80 @@ class VisitService {
     }
   }
 
+  Future<List<dynamic>?> getCachedVisitHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    if (userId == null || userId.isEmpty) return null;
+
+    final raw = prefs.getString('$_historyCacheKeyPrefix:$userId');
+    if (raw == null || raw.isEmpty) return null;
+
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) {
+        await prefs.remove('$_historyCacheKeyPrefix:$userId');
+        return null;
+      }
+      return decoded;
+    } on FormatException {
+      await prefs.remove('$_historyCacheKeyPrefix:$userId');
+      return null;
+    }
+  }
+
+  Future<List<dynamic>> refreshVisitHistory() async {
+    final headers = await ApiConfig.getAuthHeaders();
+    final response = await ApiConfig.get(
+      Uri.parse('${ApiConfig.baseUrl}/store-visits/history'),
+      headers: headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception('Gagal memuat riwayat (Status: ${response.statusCode}).');
+    }
+
+    final decoded = jsonDecode(response.body);
+    final List<dynamic> history;
+    if (decoded is Map<String, dynamic> && decoded['data'] is List) {
+      history = decoded['data'] as List<dynamic>;
+    } else if (decoded is List) {
+      history = decoded;
+    } else {
+      throw const FormatException('Format riwayat kunjungan tidak valid.');
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userId = prefs.getString('user_id');
+      if (userId != null && userId.isNotEmpty) {
+        await prefs.setString(
+          '$_historyCacheKeyPrefix:$userId',
+          jsonEncode(history),
+        );
+      }
+    } catch (error, stackTrace) {
+      developer.log(
+        'Could not save refreshed visit history to cache.',
+        name: 'VisitService',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+
+    return history;
+  }
+
   Future<List<dynamic>> getVisitHistory() async {
     try {
-      final headers = await ApiConfig.getAuthHeaders();
-      final response = await http
-          .get(
-            Uri.parse('${ApiConfig.baseUrl}/store-visits/history'),
-            headers: headers,
-          )
-          .timeout(const Duration(seconds: 12));
-
-      if (response.statusCode != 200) return [];
-
-      final decoded = jsonDecode(response.body);
-
-      if (decoded is Map<String, dynamic> && decoded['data'] != null) {
-        final data = decoded['data'];
-        if (data is List) {
-          return data;
-        }
-      } else if (decoded is List) {
-        return decoded;
-      }
-
-      return [];
-    } catch (e) {
-      return [];
+      return await refreshVisitHistory();
+    } catch (error, stackTrace) {
+      developer.log(
+        'Could not refresh visit history; trying the local cache.',
+        name: 'VisitService',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      return await getCachedVisitHistory() ?? [];
     }
   }
 }

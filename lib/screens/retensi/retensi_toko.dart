@@ -8,6 +8,7 @@ import '../../models/partner_model.dart';
 import '../../services/api_service.dart';
 import '../../services/location_service.dart';
 import '../../services/store_visit_service.dart';
+import '../../widgets/async_state_widgets.dart';
 import '../home/report.dart';
 
 class StoreReviewPage extends StatefulWidget {
@@ -31,6 +32,8 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   List<String> _availableCities = ['Semua'];
   Position? _currentPosition;
   bool _isLoading = true;
+  bool _isRefreshingPartners = false;
+  bool _isShowingCachedPartners = false;
   String _errorMessage = '';
 
   final TextEditingController _searchController = TextEditingController();
@@ -60,58 +63,85 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
   }
 
   Future<void> _loadPartnersData() async {
+    if (_isRefreshingPartners) return;
+
     setState(() {
-      _isLoading = true;
+      _isRefreshingPartners = true;
       _errorMessage = '';
     });
 
+    List<Partner>? cachedPartners;
     try {
-      final positionFuture = _locationService.getCurrentLocation().catchError(
-        (_) => null,
-      );
-      final partnersFuture = _apiService.fetchPartners();
-      final results = await Future.wait<Object?>([
-        positionFuture,
-        partnersFuture,
-      ]);
+      cachedPartners = await _apiService.getCachedPartners();
+    } catch (error) {
+      debugPrint('Gagal membaca cache toko: $error');
+    }
 
-      final position = results[0] as Position?;
-      final partners = results[1] as List<Partner>;
+    if (!mounted) return;
 
-      final cities = [
-        'Semua',
-        ...partners.map((e) => e.kota).where((c) => c.isNotEmpty).toSet(),
-      ];
+    if (cachedPartners != null) {
+      _applyPartners(cachedPartners);
+      setState(() {
+        _isLoading = false;
+        _isShowingCachedPartners = true;
+      });
+    } else {
+      setState(() => _isLoading = true);
+    }
+
+    unawaited(_loadCurrentPosition());
+
+    try {
+      final partners = await _apiService.fetchPartners();
 
       if (!mounted) return;
       setState(() {
-        _currentPosition = position;
-        _partners = partners;
-        _filteredPartners = partners;
-        _availableCities = cities;
         _isLoading = false;
+        _isShowingCachedPartners = false;
       });
-
-      if (_currentPosition != null) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _mapController.move(
-            latlong.LatLng(
-              _currentPosition!.latitude,
-              _currentPosition!.longitude,
-            ),
-            _currentZoom,
-          );
-        });
-      }
-
-      _applyFilterAndSort();
+      _applyPartners(partners);
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _errorMessage = e.toString();
         _isLoading = false;
+        _isShowingCachedPartners = cachedPartners != null;
+        _errorMessage = cachedPartners == null ? e.toString() : '';
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingPartners = false);
+      }
     }
+  }
+
+  Future<void> _loadCurrentPosition() async {
+    try {
+      final position = await _locationService.getCurrentLocation();
+      if (!mounted || position == null) return;
+
+      setState(() => _currentPosition = position);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.move(
+          latlong.LatLng(position.latitude, position.longitude),
+          _currentZoom,
+        );
+      });
+    } catch (error) {
+      debugPrint('Gagal memuat lokasi saat ini: $error');
+    }
+  }
+
+  void _applyPartners(List<Partner> partners) {
+    _partners = partners;
+    _availableCities = [
+      'Semua',
+      ...partners
+          .map((partner) => partner.kota)
+          .where((city) => city.isNotEmpty)
+          .toSet(),
+    ];
+    _applyFilterAndSort();
   }
 
   void _onSearchChanged(String _) {
@@ -387,23 +417,36 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FF),
       appBar: _buildAppBar(),
-      body: RefreshIndicator(
-        onRefresh: _loadPartnersData,
-        child: CustomScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(child: _buildMapHeader()),
-            SliverToBoxAdapter(
-              child: Padding(
+      body: SafeArea(
+        top: false,
+        child: RefreshIndicator(
+          onRefresh: _loadPartnersData,
+          child: ListView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: 92),
+            children: [
+              _buildMapHeader(),
+              Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [_buildFilterRow(), const SizedBox(height: 16)],
                 ),
               ),
-            ),
-            _buildSliverContentArea(),
-          ],
+              if (_isShowingCachedPartners)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: AppOfflineBanner(
+                    message: _isRefreshingPartners
+                        ? 'Menampilkan cache toko sambil memperbarui data'
+                        : 'Menampilkan data offline / sinyal lemah',
+                    onRetry: _loadPartnersData,
+                    isRetrying: _isRefreshingPartners,
+                  ),
+                ),
+              _buildContentArea(),
+            ],
+          ),
         ),
       ),
     );
@@ -446,10 +489,14 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     final validPartners = _filteredPartners
         .where((p) => p.latitude != 0.0 && p.longitude != 0.0)
         .toList();
+    final screenHeight = MediaQuery.sizeOf(context).height;
+    final mapHeight = _isMapExpanded
+        ? (screenHeight * 0.42).clamp(260.0, 420.0)
+        : (screenHeight * 0.28).clamp(180.0, 260.0);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      height: _isMapExpanded ? 400 : 220,
+      height: mapHeight,
       child: Stack(
         children: [
           FlutterMap(
@@ -701,59 +748,43 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
     );
   }
 
-  Widget _buildSliverContentArea() {
+  Widget _buildContentArea() {
     if (_isLoading) {
-      return const SliverFillRemaining(
-        child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Center(child: CircularProgressIndicator()),
-        ),
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16.0, 0.0, 16.0, 0.0),
+        child: AppPageSkeleton(itemCount: 5, itemHeight: 110, spacing: 12),
       );
     }
 
     if (_errorMessage.isNotEmpty) {
-      return SliverFillRemaining(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.wifi_off, color: Colors.red[300], size: 48),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.red),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadPartnersData,
-                child: const Text('Coba Lagi'),
-              ),
-            ],
+      return Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Center(
+          child: AppErrorState(
+            title: 'Gagal memuat data toko',
+            message: _errorMessage,
+            onRetry: _loadPartnersData,
           ),
         ),
       );
     }
 
     if (_filteredPartners.isEmpty) {
-      return const SliverFillRemaining(
-        child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Center(
-            child: Text(
-              'Tidak ada data toko yang cocok.',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
+      return const Padding(
+        padding: EdgeInsets.all(32.0),
+        child: Center(
+          child: Text(
+            'Tidak ada data toko yang cocok.',
+            style: TextStyle(fontSize: 16, color: Colors.grey),
           ),
         ),
       );
     }
 
-    return SliverPadding(
+    return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-      sliver: SliverList(
-        delegate: SliverChildBuilderDelegate((context, index) {
+      child: Column(
+        children: List.generate(_filteredPartners.length, (index) {
           final partner = _filteredPartners[index];
           final bool isCompleted =
               partner.visitStatus == 'COMPLETED' ||
@@ -777,7 +808,7 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
                   : null,
             ),
           );
-        }, childCount: _filteredPartners.length),
+        }),
       ),
     );
   }
@@ -1098,6 +1129,7 @@ class PartnerCard extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.all(16.0).copyWith(left: 22),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min, // <--- TAMBAHKAN BARIS INI
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
@@ -1105,6 +1137,8 @@ class PartnerCard extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Column(
+                            mainAxisSize: MainAxisSize
+                                .min, // <--- Tambahkan juga di sub-column ini agar aman
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(

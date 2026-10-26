@@ -13,6 +13,7 @@ import '../stock/stock_page.dart';
 import './detail_kunjungan_page.dart';
 import './history_visit.dart';
 import '../../services/auth_service.dart';
+import '../../widgets/async_state_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -32,6 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // State Data Dinamis
   bool _isLoadingDashboard = true;
+  bool _isRefreshingDashboard = false;
+  bool _isDashboardOffline = false;
+  bool _hasDashboardSnapshot = false;
+  String? _dashboardError;
   int _visitedToday = 0;
   final int _targetToday = 5;
   int _monthlyTrips = 0;
@@ -63,9 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleNavigationTap(int index) {
     setState(() => _currentIndex = index);
 
-    if ((index == 2 || index == 3) &&
-        _stockProducts.isEmpty &&
-        !_isLoadingStock) {
+    if (index == 3 && _stockProducts.isEmpty && !_isLoadingStock) {
       _loadStockProducts();
     }
   }
@@ -152,48 +155,78 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadDashboardData() async {
-    if (!mounted) return;
-    setState(() => _isLoadingDashboard = true);
+    if (!mounted || _isRefreshingDashboard) return;
+    setState(() {
+      _isLoadingDashboard = !_hasDashboardSnapshot;
+      _isRefreshingDashboard = true;
+      _dashboardError = null;
+    });
 
     try {
-      final historyList = await _visitService.getVisitHistory();
-      if (!mounted) return;
-
-      final visits = historyList;
-      final now = DateTime.now();
-
-      final completedVisits = visits.where((v) {
-        return v is Map && v['status']?.toString() == 'COMPLETED';
-      }).toList();
-
-      DateTime? visitDate(dynamic visit) {
-        if (visit is! Map) return null;
-        final checkInStr = visit['check_in_at']?.toString();
-        if (checkInStr == null) return null;
-        return DateTime.tryParse(checkInStr)?.toLocal();
+      final cachedVisits = await _visitService.getCachedVisitHistory();
+      if (mounted && cachedVisits != null) {
+        _applyDashboardVisits(cachedVisits);
+        setState(() {
+          _isLoadingDashboard = false;
+          _isDashboardOffline = true;
+          _hasDashboardSnapshot = true;
+        });
       }
+    } catch (error) {
+      debugPrint('Gagal membaca cache riwayat dashboard: $error');
+    }
 
-      final monthlyVisits = completedVisits.where((visit) {
-        final date = visitDate(visit);
-        return date != null && date.year == now.year && date.month == now.month;
-      }).toList();
-
-      final todayVisits = monthlyVisits.where((visit) {
-        final date = visitDate(visit);
-        return date != null && date.day == now.day;
-      }).toList();
-
+    try {
+      final historyList = await _visitService.refreshVisitHistory();
+      if (!mounted) return;
+      _applyDashboardVisits(historyList);
       setState(() {
-        _recentVisits = todayVisits.take(5).toList();
-        _monthlyTrips = monthlyVisits.length;
-        _visitedToday = todayVisits.length;
         _isLoadingDashboard = false;
+        _isDashboardOffline = false;
+        _hasDashboardSnapshot = true;
       });
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoadingDashboard = false);
+        setState(() {
+          _isLoadingDashboard = false;
+          _isDashboardOffline = _hasDashboardSnapshot;
+          _dashboardError = _hasDashboardSnapshot ? null : e.toString();
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isRefreshingDashboard = false);
       }
     }
+  }
+
+  void _applyDashboardVisits(List<dynamic> visits) {
+    final now = DateTime.now();
+    final completedVisits = visits.where((visit) {
+      return visit is Map && visit['status']?.toString() == 'COMPLETED';
+    }).toList();
+
+    DateTime? visitDate(dynamic visit) {
+      if (visit is! Map) return null;
+      final checkIn = visit['check_in_at']?.toString();
+      if (checkIn == null) return null;
+      return DateTime.tryParse(checkIn)?.toLocal();
+    }
+
+    final monthlyVisits = completedVisits.where((visit) {
+      final date = visitDate(visit);
+      return date != null && date.year == now.year && date.month == now.month;
+    }).toList();
+    final todayVisits = monthlyVisits.where((visit) {
+      final date = visitDate(visit);
+      return date != null && date.day == now.day;
+    }).toList();
+
+    setState(() {
+      _recentVisits = todayVisits.take(5).toList();
+      _monthlyTrips = monthlyVisits.length;
+      _visitedToday = todayVisits.length;
+    });
   }
 
   Future<void> _loadStockProducts() async {
@@ -204,6 +237,16 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
+      final cachedStocks = await StockService.getCachedStocks();
+      if (mounted && cachedStocks != null) {
+        final cachedData = cachedStocks['data'] as List? ?? const [];
+        setState(() {
+          _stockProducts = cachedData
+              .map((item) => StockProduct.fromJson(item))
+              .toList();
+        });
+      }
+
       final result = await StockService.fetchStocks();
 
       if (!mounted) return;
@@ -369,10 +412,24 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildDashboardContent(BuildContext context) {
-    if (_isLoadingDashboard && _recentVisits.isEmpty) {
+    if (_isLoadingDashboard && !_hasDashboardSnapshot) {
       return Padding(
         padding: const EdgeInsets.all(16),
         child: Column(children: [_buildDashboardSkeleton()]),
+      );
+    }
+
+    if (_dashboardError != null && !_hasDashboardSnapshot) {
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          AppErrorState(
+            title: 'Gagal memuat ringkasan',
+            message: _dashboardError!,
+            onRetry: _loadDashboardData,
+          ),
+        ],
       );
     }
 
@@ -384,6 +441,12 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_isDashboardOffline)
+              AppOfflineBanner(
+                message: 'Menampilkan data offline / sinyal lemah',
+                onRetry: _loadDashboardData,
+                isRetrying: _isRefreshingDashboard,
+              ),
             _PerformanceCard(
               visitedToday: _visitedToday,
               targetToday: _targetToday,

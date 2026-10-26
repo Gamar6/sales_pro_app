@@ -1,22 +1,32 @@
+import 'dart:async';
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'dart:developer' as developer;
+import 'dart:io';
+
 import 'package:shared_preferences/shared_preferences.dart';
-import '../services/api_config.dart';
+
+import 'api_config.dart';
 
 class StockService {
-  static const String _cacheKey = 'stock_cache';
+  static const String _cacheKeyPrefix = 'stock_cache';
 
   static Future<Map<String, dynamic>?> getCachedStocks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final userId = prefs.getString('user_id');
+    if (userId == null || userId.isEmpty) return null;
+
+    final raw = prefs.getString('$_cacheKeyPrefix:$userId');
+    if (raw == null || raw.isEmpty) return null;
+
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_cacheKey);
-      if (raw == null || raw.isEmpty) return null;
-
       final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) return null;
-
+      if (decoded is! Map<String, dynamic>) {
+        await prefs.remove('$_cacheKeyPrefix:$userId');
+        return null;
+      }
       return decoded;
-    } catch (_) {
+    } on FormatException {
+      await prefs.remove('$_cacheKeyPrefix:$userId');
       return null;
     }
   }
@@ -24,59 +34,44 @@ class StockService {
   static Future<void> saveCachedStocks(Map<String, dynamic> payload) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(_cacheKey, jsonEncode(payload));
-    } catch (_) {}
+      final userId = prefs.getString('user_id');
+      if (userId == null || userId.isEmpty) return;
+
+      await prefs.setString('$_cacheKeyPrefix:$userId', jsonEncode(payload));
+    } catch (error, stackTrace) {
+      developer.log(
+        'Could not save refreshed stock data to cache.',
+        name: 'StockService',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
   }
 
-  static Future<Map<String, dynamic>> fetchStocks({
-    bool forceRefresh = false,
-  }) async {
+  static Future<Map<String, dynamic>> fetchStocks() async {
+    Map<String, dynamic>? cached;
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('token');
-
-      final cached = await getCachedStocks();
-      if (!forceRefresh && cached != null) {
-        return {
-          'success': true,
-          'cached': true,
-          'total_skus': cached['total_skus'] ?? 0,
-          'low_stock_count': cached['low_stock_count'] ?? 0,
-          'data': cached['data'] ?? [],
-          'message': 'Menampilkan data offline / sinyal lemah',
-        };
+      cached = await getCachedStocks();
+      final headers = await ApiConfig.getAuthHeaders();
+      if (!headers.containsKey('Authorization')) {
+        return _cachedOrError(
+          cached,
+          'Sesi login telah berakhir. Silakan login kembali.',
+        );
       }
 
-      if (token == null || token.isEmpty) {
-        if (cached != null) {
-          return {
-            'success': true,
-            'cached': true,
-            'total_skus': cached['total_skus'] ?? 0,
-            'low_stock_count': cached['low_stock_count'] ?? 0,
-            'data': cached['data'] ?? [],
-            'message': 'Menampilkan data offline / sinyal lemah',
-          };
-        }
-
-        return {
-          'success': false,
-          'message': 'Sesi login telah berakhir. Silakan login kembali.',
-        };
-      }
-
-      final response = await http.get(
+      final response = await ApiConfig.get(
         Uri.parse('${ApiConfig.baseUrl}/stocks'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'Authorization':
-              'Bearer $token',
-        },
+        headers: headers,
       );
 
       if (response.statusCode == 200) {
         final body = jsonDecode(response.body) as Map<String, dynamic>;
+        if (body['data'] != null && body['data'] is! List) {
+          throw const FormatException(
+            'Format data stok dari server tidak valid.',
+          );
+        }
         final payload = {
           'success': true,
           'total_skus': body['total_skus'] ?? 0,
@@ -85,56 +80,43 @@ class StockService {
         };
 
         await saveCachedStocks(payload);
-
-        return {
-          'success': true,
-          'cached': false,
-          'total_skus': payload['total_skus'],
-          'low_stock_count': payload['low_stock_count'],
-          'data': payload['data'],
-        };
+        return {...payload, 'success': true, 'cached': false};
       }
 
-      final fallback = await getCachedStocks();
-      if (fallback != null) {
-        return {
-          'success': true,
-          'cached': true,
-          'total_skus': fallback['total_skus'] ?? 0,
-          'low_stock_count': fallback['low_stock_count'] ?? 0,
-          'data': fallback['data'] ?? [],
-          'message': 'Menampilkan data offline.',
-        };
-      }
+      final message = response.statusCode == 401
+          ? 'Akses ditolak (401). Silakan login ulang.'
+          : 'Gagal mengambil data stok (Status: ${response.statusCode})';
+      return _cachedOrError(cached, message);
+    } on TimeoutException {
+      return _cachedOrError(
+        cached,
+        'Koneksi lambat. Data cache tetap tersedia; coba lagi.',
+      );
+    } on SocketException {
+      return _cachedOrError(
+        cached,
+        'Tidak ada koneksi ke server. Coba lagi saat jaringan membaik.',
+      );
+    } on Exception {
+      return _cachedOrError(cached, 'Tidak dapat memuat data stok. Coba lagi.');
+    }
+  }
 
-      if (response.statusCode == 401) {
-        return {
-          'success': false,
-          'message': 'Akses ditolak (401). Silakan login ulang.',
-        };
-      }
-
+  static Map<String, dynamic> _cachedOrError(
+    Map<String, dynamic>? cached,
+    String errorMessage,
+  ) {
+    if (cached != null) {
       return {
-        'success': false,
-        'message': 'Gagal mengambil data stok (Status: ${response.statusCode})',
-      };
-    } catch (_) {
-      final fallback = await getCachedStocks();
-      if (fallback != null) {
-        return {
-          'success': true,
-          'cached': true,
-          'total_skus': fallback['total_skus'] ?? 0,
-          'low_stock_count': fallback['low_stock_count'] ?? 0,
-          'data': fallback['data'] ?? [],
-          'message': 'Menampilkan data offline.',
-        };
-      }
-
-      return {
-        'success': false,
-        'message': 'Tidak dapat terhubung ke server backend.',
+        'success': true,
+        'cached': true,
+        'total_skus': cached['total_skus'] ?? 0,
+        'low_stock_count': cached['low_stock_count'] ?? 0,
+        'data': cached['data'] ?? [],
+        'message': errorMessage,
       };
     }
+
+    return {'success': false, 'message': errorMessage};
   }
 }

@@ -14,6 +14,10 @@ class _VisitHistoryPageState extends State<VisitHistoryPage> {
   final VisitService _visitService = VisitService();
 
   bool _isLoading = true;
+  bool _isRefreshing = false;
+  bool _isOffline = false;
+  bool _hasHistorySnapshot = false;
+  String? _loadError;
   List<dynamic> _visits = [];
   List<dynamic> _filteredVisits = [];
   String _selectedFilter = 'Hari Ini';
@@ -26,13 +30,53 @@ class _VisitHistoryPageState extends State<VisitHistoryPage> {
   }
 
   Future<void> _fetchVisitHistory() async {
-    setState(() => _isLoading = true);
-    final data = await _visitService.getVisitHistory();
+    if (_isRefreshing) return;
     setState(() {
-      _visits = data;
-      _isLoading = false;
+      _isRefreshing = true;
+      _isLoading = !_hasHistorySnapshot;
+      _loadError = null;
     });
-    _applyFilter();
+
+    try {
+      if (_visits.isEmpty) {
+        try {
+          final cached = await _visitService.getCachedVisitHistory();
+          if (mounted && cached != null) {
+            setState(() {
+              _visits = cached;
+              _isLoading = false;
+              _isOffline = true;
+              _hasHistorySnapshot = true;
+            });
+            _applyFilter();
+          }
+        } catch (error) {
+          debugPrint('Gagal membaca cache riwayat kunjungan: $error');
+        }
+      }
+
+      final data = await _visitService.refreshVisitHistory();
+      if (!mounted) return;
+      setState(() {
+        _visits = data;
+        _isOffline = false;
+        _hasHistorySnapshot = true;
+      });
+      _applyFilter();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isOffline = _hasHistorySnapshot;
+        _loadError = _hasHistorySnapshot ? null : error.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _isRefreshing = false;
+        });
+      }
+    }
   }
 
   DateTime? _parseVisitDate(Map<String, dynamic> visit) {
@@ -219,21 +263,23 @@ class _VisitHistoryPageState extends State<VisitHistoryPage> {
                   ),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
-                    children: const [
-                      Text(
+                    children: [
+                      const Text(
                         'Status Sync',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF424752),
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
-                        'Terhubung',
+                        _isOffline ? 'Offline' : 'Terhubung',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF006E25),
+                          color: _isOffline
+                              ? Color(0xFF8A5A00)
+                              : Color(0xFF006E25),
                         ),
                       ),
                     ],
@@ -244,13 +290,30 @@ class _VisitHistoryPageState extends State<VisitHistoryPage> {
             const SizedBox(height: 12),
 
             // Visit List Dinamis
-            if (_isLoading)
+            if (_isOffline && _visits.isNotEmpty)
+              AppOfflineBanner(
+                message: _isRefreshing
+                    ? 'Menampilkan cache riwayat sambil memperbarui data'
+                    : 'Menampilkan data offline / sinyal lemah',
+                onRetry: _fetchVisitHistory,
+                isRetrying: _isRefreshing,
+              )
+            else if (_isLoading)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24.0),
                 child: AppPageSkeleton(
                   itemCount: 4,
                   itemHeight: 88,
                   spacing: 10,
+                ),
+              )
+            else if (_loadError != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: AppErrorState(
+                  title: 'Gagal memuat riwayat kunjungan',
+                  message: _loadError!,
+                  onRetry: _fetchVisitHistory,
                 ),
               )
             else if (_filteredVisits.isEmpty)
