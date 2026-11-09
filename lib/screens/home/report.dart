@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:geolocator/geolocator.dart';
 
-import '../../models/visit_model.dart';
+import '../../models/visit_report_model.dart';
 import '../../services/visit_service.dart';
 
 enum VisitFormResult { completed, cancelled }
@@ -12,8 +12,16 @@ enum VisitFormResult { completed, cancelled }
 class VisitFormPage extends StatefulWidget {
   final String outletName;
   final String? visitId;
+  final String storeType;
+  final int? storeId;
 
-  const VisitFormPage({super.key, required this.outletName, this.visitId});
+  const VisitFormPage({
+    super.key,
+    required this.outletName,
+    this.visitId,
+    this.storeType = 'regular',
+    this.storeId,
+  });
 
   @override
   State<VisitFormPage> createState() => _VisitFormPageState();
@@ -56,7 +64,8 @@ class _VisitFormPageState extends State<VisitFormPage> {
     _outletController = TextEditingController(text: widget.outletName);
     _currentVisitId = widget.visitId;
 
-    if (_currentVisitId == null || _currentVisitId!.isEmpty) {
+    if (widget.storeType == 'regular' &&
+        (_currentVisitId == null || _currentVisitId!.isEmpty)) {
       _fetchActiveVisitId();
     }
   }
@@ -125,11 +134,11 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
       _showMessage('Gagal mengambil ID Kunjungan aktif: $e');
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isFetchingVisitId = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isFetchingVisitId = false;
+        });
+      }
     }
   }
 
@@ -227,8 +236,16 @@ class _VisitFormPageState extends State<VisitFormPage> {
   // FORM VALIDATION
 
   String? _validateForm() {
-    if (!_hasVisitId) {
+    if (widget.storeId == null) {
+      return 'ID toko tidak ditemukan.';
+    }
+
+    if (widget.storeType == 'regular' && !_hasVisitId) {
       return 'ID Kunjungan tidak ditemukan.';
+    }
+
+    if (widget.storeType == 'regular' && _selectedImages.isEmpty) {
+      return 'Lampirkan minimal satu foto dokumentasi.';
     }
 
     if (_picController.text.trim().isEmpty) {
@@ -262,10 +279,6 @@ class _VisitFormPageState extends State<VisitFormPage> {
       }
     }
 
-    if (_selectedImages.isEmpty) {
-      return 'Lampirkan minimal satu foto dokumentasi.';
-    }
-
     return null;
   }
 
@@ -288,19 +301,25 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
       if (!mounted) return;
 
-      final requestModel = VisitRequestModel(
-        outletName: widget.outletName,
-        visitId: _currentVisitId,
-        pic: _picController.text.trim(),
-        sisaStokPersen: _stokPersenController.text.trim(),
-        sisaStokPcs: _stokPcsController.text.trim(),
-        catatan: _buildCatatan(),
-        aktivitas: _selectedAktivitas, 
-        photos: _selectedImages,
-
-        latitude: position.latitude,
-        longitude: position.longitude,
-        accuracy: position.accuracy,
+      final capturedAt = DateTime.now().toUtc();
+      final requestModel = VisitReportModel(
+        storeType: widget.storeType,
+        storeId: widget.storeId!,
+        storeVisitId: widget.storeType == 'regular' ? _currentVisitId : null,
+        picName: _picController.text.trim(),
+        activities: _selectedAktivitas,
+        stockPercentage: int.tryParse(_stokPersenController.text.trim()),
+        stockPcs: int.tryParse(_stokPcsController.text.trim()),
+        notes: _buildCatatan(),
+        photos: List.unmodifiable(_selectedImages),
+        checkInPhoto: widget.storeType == 'field' && _selectedImages.isNotEmpty
+            ? _selectedImages.first
+            : null,
+        checkInLatitude: position.latitude,
+        checkInLongitude: position.longitude,
+        salesAccuracy: position.accuracy,
+        visitedAt: capturedAt,
+        locationCapturedAt: capturedAt,
       );
 
       await _visitService.submitVisit(requestModel);
@@ -317,11 +336,11 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
       _showMessage('Gagal mengirim laporan: $message');
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -395,11 +414,11 @@ class _VisitFormPageState extends State<VisitFormPage> {
 
       _showMessage('Gagal membatalkan kunjungan: $message');
     } finally {
-      if (!mounted) return;
-
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -654,9 +673,9 @@ class _VisitFormPageState extends State<VisitFormPage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildTextFieldLabel('Dokumentasi Foto'),
-            Text(
-              '${_selectedImages.length}/4 Foto',
-              style: const TextStyle(fontSize: 12, color: _secondaryTextColor),
+            const Text(
+              'Maks. 4 foto',
+              style: TextStyle(fontSize: 12, color: _secondaryTextColor),
             ),
           ],
         ),
@@ -669,18 +688,11 @@ class _VisitFormPageState extends State<VisitFormPage> {
             crossAxisSpacing: 8,
             mainAxisSpacing: 8,
           ),
-          itemCount: _selectedImages.length < 4
-              ? _selectedImages.length + 1
-              : 4,
+          itemCount: 1,
           itemBuilder: (context, index) {
-            final isAddButton =
-                index == _selectedImages.length && _selectedImages.length < 4;
-
-            if (isAddButton) {
-              return _buildAddPhotoButton();
-            }
-
-            return _buildSelectedPhoto(index);
+            return _selectedImages.isEmpty
+                ? _buildAddPhotoButton()
+                : _buildSelectedPhoto(index);
           },
         ),
       ],
@@ -795,11 +807,12 @@ class _VisitFormPageState extends State<VisitFormPage> {
           ),
         ),
         actions: [
-          IconButton(
-            onPressed: _isLoading ? null : _cancelVisit,
-            tooltip: 'Batalkan kunjungan',
-            icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A)),
-          ),
+          if (_hasVisitId)
+            IconButton(
+              onPressed: _isLoading ? null : _cancelVisit,
+              tooltip: 'Batalkan kunjungan',
+              icon: const Icon(Icons.cancel_outlined, color: Color(0xFFBA1A1A)),
+            ),
         ],
       ),
       body: SingleChildScrollView(

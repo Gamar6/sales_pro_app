@@ -12,7 +12,7 @@ import '../../widgets/async_state_widgets.dart';
 import '../home/report.dart';
 
 class StoreReviewPage extends StatefulWidget {
-  final Function(String outletName, String visitId)? onVisitOutlet;
+  final Function(String outletName, String visitId, int storeId)? onVisitOutlet;
   final VoidCallback? onVisitEnded;
 
   const StoreReviewPage({super.key, this.onVisitOutlet, this.onVisitEnded});
@@ -193,13 +193,20 @@ class _StoreReviewPageState extends State<StoreReviewPage> {
         return;
       }
 
-      widget.onVisitOutlet?.call(partner.partnerName, visitId);
+      widget.onVisitOutlet?.call(
+        partner.partnerName,
+        visitId,
+        partner.partnerId,
+      );
 
       final formResult = await Navigator.push<VisitFormResult>(
         context,
         MaterialPageRoute(
-          builder: (_) =>
-              VisitFormPage(outletName: partner.partnerName, visitId: visitId!),
+          builder: (_) => VisitFormPage(
+            outletName: partner.partnerName,
+            visitId: visitId!,
+            storeId: partner.partnerId,
+          ),
         ),
       );
 

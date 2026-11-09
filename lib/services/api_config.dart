@@ -4,7 +4,9 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class ApiConfig {
-  static const String baseUrl = 'https://express.fivafood.co.id/api';
+  // static const String baseUrl = 'https://express.fivafood.co.id/api';
+  static const String baseUrl = 'http://192.168.53.194:8000/api';
+  static String get v1BaseUrl => '$baseUrl/v1';
   static const Duration requestTimeout = Duration(seconds: 12);
   static const Duration uploadTimeout = Duration(seconds: 30);
 

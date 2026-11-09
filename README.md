@@ -28,6 +28,11 @@ Home
   │     ├── Submit Visit Report
   │     └── Upload Photos
   │
+  ├── Field Store Registration
+  │     ├── Enter store and owner details
+  │     ├── Capture a store photo
+  │     └── Save the sales GPS location
+  │
   ├── Visit History
   │
   ├── Stock
@@ -137,8 +142,8 @@ Sales representatives can:
 2. Claim the store
 3. Start an active visit
 4. Capture visit information
-5. Submit a visit report
-6. Upload visit photos
+5. Submit a check-in report
+6. Upload a check-in photo
 7. Complete the visit
 8. Cancel an active visit
 9. View previous visits
@@ -154,7 +159,7 @@ GET  /api/visits/active
 POST /api/store-visits/claim
         │
         ▼
-POST /api/store-visits/{visit}/submit-report
+POST /api/v1/visit-reports
         │
         ▼
 GET  /api/store-visits/history
@@ -193,7 +198,28 @@ Report information includes:
 * Notes
 * Visit photos
 
-Photos are uploaded using multipart HTTP requests.
+Regular store reports continue to use
+`POST /api/store-visits/{visit}/submit-report` so Laravel can complete the
+active `StoreVisit`. The multipart body includes the visit/store IDs, PIC,
+activities, stock values, notes, photos, and sales GPS fields.
+
+Field store reports use `POST /api/v1/visit-reports` after the field store is
+created. PIC, activities, and stock values are sent as their own fields rather
+than being folded into `notes`; the same photo is sent as both `photos[]` and
+`check_in_photo` so the backend can populate both report columns.
+
+### 🏪 Field Store Registration
+
+Sales representatives can register a store found in the field from the Home
+screen. The Flutter app sends the store information, a camera photo, and the
+sales GPS coordinates as a multipart request to `POST /api/v1/field-stores`.
+Laravel is expected to store this record in its local database, upload the photo
+to Cloudinary, and return the persisted store ID. This endpoint must not create
+or sync an Odoo partner and does not use the store-claim workflow.
+The same form also collects the visit report. After the field store is created,
+the app automatically posts its visit report using that store ID and reuses the
+captured photo as the check-in photo. If report submission fails after the store
+has been saved, retrying submits the report again without creating another store.
 
 Example:
 
@@ -390,7 +416,8 @@ sales_pro_app/
 │   │   ├── status_style.dart
 │   │   ├── stock_model.dart
 │   │   ├── store_model.dart
-│   │   └── visit_model.dart
+│   │   ├── field_store_model.dart
+│   │   └── visit_report_model.dart
 │   │
 │   ├── screens/
 │   │   ├── auth/
@@ -399,6 +426,7 @@ sales_pro_app/
 │   │   │   └── reset_password_screen.dart
 │   │   │
 │   │   ├── home/
+│   │   │   ├── add_field_store_screen.dart
 │   │   │   ├── home.dart
 │   │   │   ├── detail_kunjungan_page.dart
 │   │   │   ├── history_visit.dart
@@ -481,9 +509,32 @@ POST /api/profile/photo
 ```text
 GET  /api/visits/active
 POST /api/store-visits/claim
-POST /api/store-visits/{visit}/submit-report
 POST /api/store-visits/{visit}/cancel
 GET  /api/store-visits/history
+```
+
+### Field Stores
+
+```text
+POST /api/v1/field-stores
+Content-Type: multipart/form-data
+
+store_name, owner_name, phone_number, address,
+latitude, longitude, photo
+```
+
+The Laravel endpoint should persist the submitted field store locally and return
+the saved record (including its Cloudinary photo URL and database ID).
+No approval step or Odoo synchronization is part of this flow.
+
+### Visit Reports
+
+```text
+POST /api/v1/visit-reports
+Content-Type: multipart/form-data
+
+store_type, store_id, notes, check_in_photo,
+check_in_lat, check_in_lng, visited_at
 ```
 
 ### Operational Data

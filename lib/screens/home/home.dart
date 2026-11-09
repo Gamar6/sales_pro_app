@@ -5,7 +5,9 @@ import '../../services/visit_service.dart';
 import '../../widgets/bottom_nav_widget.dart';
 import '../../widgets/home_header.dart';
 import '../../models/stock_model.dart';
+import '../../models/field_store_model.dart';
 import '../../services/stock_service.dart';
+import 'add_field_store_screen.dart';
 import '../profile/profile_screen.dart';
 import '../retensi/retensi_toko.dart';
 import '../sim_harga/sim_harga.dart';
@@ -27,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   String? _activeOutletName;
   String? _activeVisitId;
+  int? _activeStoreId;
 
   String _profileImageUrl =
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBiDbZGtQo3RkzpMbtd30QF_Oj7cyw1o-wUuBFyHet9BZZ2hpGCKhvyJA5wCk3pLGjmV6CYWSEUQ1-9UFe4NCajq8bhuaoRuHSXaxNQJ7P26IdDXE37C-D24B6GwD_L7LVCPQ24ipR--SbpEDA7NOkqEg9bLUmfh13yABWrvoiTg4AbiboQeLL4M9poM0UM5d6Gyh7pLFoXCW-sVq9UgN0-096bkk0y8HmO6A6ajFbQOZPYlLxPmkXe';
@@ -124,7 +127,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (outletName == null || outletName.isEmpty) {
         final partnerId = int.tryParse(
-          activeVisit['odoo_partner_id']?.toString() ?? '',
+          activeVisit['store_id']?.toString() ??
+              activeVisit['odoo_partner_id']?.toString() ??
+              '',
         );
 
         if (partnerId != null) {
@@ -147,6 +152,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
       setState(() {
         _activeVisitId = activeVisit['visit_id']?.toString();
+        _activeStoreId = int.tryParse(
+          activeVisit['store_id']?.toString() ??
+              activeVisit['odoo_partner_id']?.toString() ??
+              '',
+        );
         _activeOutletName = outletName;
       });
     } catch (e) {
@@ -286,10 +296,12 @@ class _HomeScreenState extends State<HomeScreen> {
         onTap: _handleNavigationTap,
         activeOutletName: _activeOutletName,
         activeVisitId: _activeVisitId,
+        activeStoreId: _activeStoreId,
         onFinishVisit: () {
           setState(() {
             _activeOutletName = null;
             _activeVisitId = null;
+            _activeStoreId = null;
           });
           _loadDashboardData();
         },
@@ -335,16 +347,18 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       case 1:
         return StoreReviewPage(
-          onVisitOutlet: (selectedOutletName, visitId) {
+          onVisitOutlet: (selectedOutletName, visitId, storeId) {
             setState(() {
               _activeOutletName = selectedOutletName;
               _activeVisitId = visitId;
+              _activeStoreId = storeId;
             });
           },
           onVisitEnded: () {
             setState(() {
               _activeOutletName = null;
               _activeVisitId = null;
+              _activeStoreId = null;
             });
             _loadDashboardData();
           },
@@ -472,6 +486,52 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: () async {
+                  final store = await Navigator.push<FieldStoreModel>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const AddFieldStoreScreen(),
+                    ),
+                  );
+                  if (store != null && context.mounted) {
+                    if (store.id == null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Toko tersimpan, tetapi ID toko tidak tersedia untuk laporan kunjungan.',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'Toko "${store.storeName}" dan laporan kunjungan berhasil disimpan.',
+                          ),
+                        ),
+                      );
+                      _loadDashboardData();
+                    }
+                  }
+                },
+                icon: const Icon(Icons.add_business_outlined, size: 18),
+                label: const Text(
+                  'TAMBAH TOKO BARU (FIELD STORE)',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
                   ),
                 ),
               ),

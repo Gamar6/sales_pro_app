@@ -3,7 +3,7 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
-import '../models/visit_model.dart';
+import '../models/visit_report_model.dart';
 
 class VisitService {
   static const String _historyCacheKeyPrefix = 'visit_history_cache';
@@ -65,8 +65,20 @@ class VisitService {
 
       return {
         'visit_id': visitId.toString(),
-        if (data['odoo_partner_id'] != null)
-          'odoo_partner_id': data['odoo_partner_id'],
+        if ((data['store_id'] ??
+                visitData['store_id'] ??
+                data['odoo_partner_id'] ??
+                visitData['odoo_partner_id'] ??
+                data['partner_id'] ??
+                visitData['partner_id']) !=
+            null)
+          'store_id':
+              data['store_id'] ??
+              visitData['store_id'] ??
+              data['odoo_partner_id'] ??
+              visitData['odoo_partner_id'] ??
+              data['partner_id'] ??
+              visitData['partner_id'],
         if (outletName != null) 'outlet_name': outletName.toString(),
       };
     } catch (_) {
@@ -79,24 +91,49 @@ class VisitService {
     return activeVisit?['visit_id']?.toString();
   }
 
-  Future<void> submitVisit(VisitRequestModel model) async {
-    final String endpoint = (model.visitId != null && model.visitId!.isNotEmpty)
-        ? '/store-visits/${model.visitId}/submit-report'
-        : '/store-visits/claim';
+  Future<void> submitVisit(VisitReportModel model) async {
+    final bool isRegularStore = model.storeType == 'regular';
+    if (isRegularStore &&
+        (model.storeVisitId == null || model.storeVisitId!.isEmpty)) {
+      throw ArgumentError(
+        'ID kunjungan aktif wajib ada untuk mengirim laporan toko reguler.',
+      );
+    }
 
-    final uri = Uri.parse('${ApiConfig.baseUrl}$endpoint');
-    final request = http.MultipartRequest('POST', uri);
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse(
+        isRegularStore
+            ? '${ApiConfig.baseUrl}/store-visits/${model.storeVisitId}/submit-report'
+            : '${ApiConfig.v1BaseUrl}/visit-reports',
+      ),
+    );
 
     final headers = await ApiConfig.getAuthHeaders();
     headers.remove('Content-Type');
     request.headers.addAll(headers);
 
-    request.fields.addAll(model.toFieldsMap());
+    request.fields.addAll(
+      isRegularStore ? model.toRegularVisitFieldsMap() : model.toFieldsMap(),
+    );
 
-    for (var photo in model.photos) {
-      final bytes = await photo.readAsBytes();
+    for (final photo in model.photos) {
       request.files.add(
-        http.MultipartFile.fromBytes('photos[]', bytes, filename: photo.name),
+        http.MultipartFile.fromBytes(
+          'photos[]',
+          await photo.readAsBytes(),
+          filename: photo.name,
+        ),
+      );
+    }
+
+    if (!isRegularStore && model.checkInPhoto != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'check_in_photo',
+          await model.checkInPhoto!.readAsBytes(),
+          filename: model.checkInPhoto!.name,
+        ),
       );
     }
 

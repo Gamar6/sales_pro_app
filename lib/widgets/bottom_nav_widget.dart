@@ -8,6 +8,7 @@ class BottomNavWidget extends StatelessWidget {
   final String? activeOutletName;
   final VoidCallback? onFinishVisit;
   final String? activeVisitId;
+  final int? activeStoreId;
 
   const BottomNavWidget({
     super.key,
@@ -16,6 +17,7 @@ class BottomNavWidget extends StatelessWidget {
     this.activeOutletName,
     this.onFinishVisit,
     this.activeVisitId,
+    this.activeStoreId,
   });
 
   @override
@@ -150,6 +152,7 @@ class BottomNavWidget extends StatelessWidget {
                   builder: (context) => VisitFormPage(
                     outletName: outletName,
                     visitId: activeVisitId,
+                    storeId: activeStoreId,
                   ),
                 ),
               );
