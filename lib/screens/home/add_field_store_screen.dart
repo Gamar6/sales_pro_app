@@ -116,11 +116,37 @@ class _AddFieldStoreScreenState extends State<AddFieldStoreScreen> {
     }
   }
 
-  Future<void> _takePhoto() async {
-    if (_hasCreatedStore) return;
+  Future<void> _showPhotoSourcePicker() async {
+    if (_isSubmitting || _hasCreatedStore) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt_outlined),
+              title: const Text('Ambil foto dengan kamera'),
+              onTap: () => Navigator.pop(context, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Pilih dari galeri / file handphone'),
+              onTap: () => Navigator.pop(context, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (source == null || !mounted) return;
+    await _pickPhoto(source);
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
     try {
       final photo = await _imagePicker.pickImage(
-        source: ImageSource.camera,
+        source: source,
         imageQuality: 75,
       );
       if (photo != null) {
@@ -134,14 +160,14 @@ class _AddFieldStoreScreenState extends State<AddFieldStoreScreen> {
       }
     } catch (error) {
       if (!mounted) return;
-      _showMessage('Gagal mengambil foto: $error');
+      _showMessage('Gagal memilih foto: $error');
     }
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     if (_photo == null) {
-      _showMessage('Ambil foto toko terlebih dahulu.');
+      _showMessage('Ambil atau pilih foto toko terlebih dahulu.');
       return;
     }
     if (_position == null) {
@@ -394,7 +420,9 @@ class _AddFieldStoreScreenState extends State<AddFieldStoreScreen> {
         const Text('Foto Toko', style: TextStyle(fontWeight: FontWeight.w600)),
         const SizedBox(height: 8),
         InkWell(
-          onTap: _isSubmitting || _hasCreatedStore ? null : _takePhoto,
+          onTap: _isSubmitting || _hasCreatedStore
+              ? null
+              : _showPhotoSourcePicker,
           borderRadius: BorderRadius.circular(12),
           child: Container(
             height: 190,
@@ -415,7 +443,10 @@ class _AddFieldStoreScreenState extends State<AddFieldStoreScreen> {
                         color: Color(0xFF003F87),
                       ),
                       SizedBox(height: 8),
-                      Text('Ketuk untuk mengambil foto dengan kamera'),
+                      Text(
+                        'Ketuk untuk mengambil foto atau memilih file dari handphone',
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   )
                 : Stack(
@@ -426,9 +457,11 @@ class _AddFieldStoreScreenState extends State<AddFieldStoreScreen> {
                         right: 8,
                         top: 8,
                         child: IconButton.filled(
-                          onPressed: _hasCreatedStore ? null : _takePhoto,
+                          onPressed: _hasCreatedStore || _isSubmitting
+                              ? null
+                              : _showPhotoSourcePicker,
                           icon: const Icon(Icons.refresh),
-                          tooltip: 'Ambil ulang foto',
+                          tooltip: 'Ganti foto',
                         ),
                       ),
                     ],

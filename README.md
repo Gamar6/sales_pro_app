@@ -511,7 +511,17 @@ GET  /api/visits/active
 POST /api/store-visits/claim
 POST /api/store-visits/{visit}/cancel
 GET  /api/store-visits/history
+POST /api/store-visits/{visit_id}/corrections
+GET  /api/store-visits/{visit_id}/corrections
 ```
+
+Visit Correction is available from the completed visit detail. The app loads
+the owner's correction history from Laravel, displays the server-provided
+correction window and effective report, and submits only changed report fields
+with a required reason and `Idempotency-Key`. Laravel remains authoritative
+for ownership, completion status, the 12-hour deadline, and approval; the
+client countdown is informational only. Each successful correction is shown
+with its before/after values and retained in correction history.
 
 ### Field Stores
 

@@ -28,6 +28,8 @@
 		<string>Lokasi digunakan untuk memverifikasi kunjungan sales ke toko.</string>
 		<key>NSCameraUsageDescription</key>
 		<string>Kamera digunakan untuk mengambil foto toko baru di lapangan.</string>
+		<key>NSPhotoLibraryUsageDescription</key>
+		<string>Galeri digunakan untuk memilih foto toko dari perangkat.</string>
 		<key>LSRequiresIPhoneOS</key>
 		<true/>
 		<key>UIApplicationSceneManifest</key>

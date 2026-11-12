@@ -3,10 +3,68 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api_config.dart';
+import '../models/visit_correction_history_model.dart';
 import '../models/visit_report_model.dart';
 
 class VisitService {
   static const String _historyCacheKeyPrefix = 'visit_history_cache';
+
+  Future<VisitCorrectionHistoryModel> getVisitCorrectionHistory(
+    String visitId,
+  ) async {
+    final headers = await ApiConfig.getAuthHeaders();
+    final response = await ApiConfig.get(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/store-visits/${Uri.encodeComponent(visitId)}/corrections',
+      ),
+      headers: headers,
+    );
+
+    if (response.statusCode != 200) {
+      throw Exception(_extractErrorMessage(response));
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic> || decoded['data'] is! Map) {
+      throw const FormatException('Format riwayat koreksi tidak valid.');
+    }
+
+    return VisitCorrectionHistoryModel.fromJson(
+      Map<String, dynamic>.from(decoded['data'] as Map),
+    );
+  }
+
+  Future<Map<String, dynamic>> submitVisitCorrection({
+    required String visitId,
+    required Map<String, dynamic> changes,
+    required String reason,
+    required String idempotencyKey,
+  }) async {
+    final headers = await ApiConfig.getAuthHeaders();
+    headers['Idempotency-Key'] = idempotencyKey;
+
+    final response = await ApiConfig.post(
+      Uri.parse(
+        '${ApiConfig.baseUrl}/store-visits/${Uri.encodeComponent(visitId)}/corrections',
+      ),
+      headers: headers,
+      body: jsonEncode({...changes, 'reason': reason}),
+    );
+
+    if (response.statusCode != 201) {
+      throw Exception(_extractErrorMessage(response));
+    }
+
+    final decoded = jsonDecode(response.body);
+    final data = decoded is Map<String, dynamic> ? decoded['data'] : null;
+    if (data is! Map ||
+        data['correction'] is! Map ||
+        data['effective_data'] is! Map) {
+      throw const FormatException('Format hasil koreksi tidak valid.');
+    }
+
+    return Map<String, dynamic>.from(data);
+  }
 
   Future<Map<String, dynamic>?> getActiveVisitDetails() async {
     try {
