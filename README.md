@@ -253,6 +253,63 @@ This allows users to review their completed or recorded visit activities.
 
 ---
 
+### ✏️ Visit Correction
+
+The application provides a Visit Correction feature that allows sales representatives to correct submitted reports after a visit has been completed.
+
+The feature is accessible from the completed visit detail screen.
+
+Key capabilities:
+
+- View the original visit report.
+- View the latest effective report.
+- Submit corrections to supported report fields.
+- Provide a mandatory correction reason.
+- View correction history.
+- Compare previous and updated values.
+- Display the remaining correction window.
+
+Supported correction fields:
+
+- PIC Name
+- Activities
+- Stock Percentage
+- Stock Quantity
+- Notes
+
+The application communicates with the backend through:
+
+```http
+POST /api/store-visits/{visit_id}/corrections
+GET  /api/store-visits/{visit_id}/corrections
+```
+
+Each correction request includes an `Idempotency-Key` to prevent duplicate submissions.
+
+The correction window is limited to 12 hours after visit completion. The backend is responsible for validating the deadline, visit ownership, and completion status. The countdown displayed in the mobile application is informational only.
+
+All corrections are retained as an audit trail. The original visit report is preserved, while the latest approved correction determines the effective report data.
+
+### 📷 Visit Photo Viewer
+
+The completed visit detail screen supports viewing visit photos in an expanded viewer.
+
+Users can:
+
+- Open uploaded visit photos.
+- View photos in full-screen mode.
+- Zoom in and out to inspect photo details.
+
+### 🖼️ Field Store Photo Selection
+
+Field Store registration supports selecting a store photo from the device.
+
+Users can capture a new photo using the camera or select an existing image from the phone gallery/files.
+
+The selected image is uploaded through the existing multipart Field Store registration workflow.
+
+---
+
 ### 📦 Stock Monitoring
 
 The application provides a dedicated stock monitoring screen.
